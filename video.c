@@ -99,7 +99,7 @@ typedef struct {
 
 // Ugly, stupid utility functions
 static void say(const char* message, ...) {
-/*    va_list args;
+    va_list args;
     char str[1024];
     memset(str, 0, sizeof(str));
     va_start(args, message);
@@ -109,7 +109,7 @@ static void say(const char* message, ...) {
     if(str[str_len - 1] != '\n') {
         str[str_len] = '\n';
     }
-    fprintf(stderr, str);*/
+    fprintf(stderr, str);
 }
 
 static void die(const char* message, ...) {
@@ -429,7 +429,7 @@ static void signal_handler(int signal) {
 
 OMX_ERRORTYPE my_fill_buffer_done(OMX_HANDLETYPE hComponent,
 					OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
-{
+{  
 	appctx *ctx = (appctx *) pAppData;
 
   if (OMX_FillThisBuffer(ctx->render, ctx->eglBuffer) != OMX_ErrorNone)
