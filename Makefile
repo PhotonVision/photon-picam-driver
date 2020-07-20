@@ -1,7 +1,6 @@
 OBJS=triangle.o video.o models.o PicamJNI.o
 
-BIN=libpicam.bin
-
+SRC=triangle.c video.c models.c PicamJNI.c
 
 LDFLAGS+=-lilclient
 
@@ -11,36 +10,32 @@ LDFLAGS+=-L$(SDKSTAGE)/opt/vc/lib/ -lbrcmGLESv2 -lbrcmEGL -lopenmaxil -lbcm_host
 
 INCLUDES+=-I$(SDKSTAGE)/opt/vc/include/ -I$(SDKSTAGE)/opt/vc/include/interface/vcos/pthreads -I$(SDKSTAGE)/opt/vc/include/interface/vmcs_host/linux -I./ -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/ilclient -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/vgfont -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/revision -I$(SDKSTAGE)/usr/lib/jvm/java-11-openjdk-armhf/include/ -I$(SDKSTAGE)/usr/lib/jvm/java-11-openjdk-armhf/include/linux/
 
-
 # Include JNI files from the default JDK
 JNI_INCLUDE=/usr/lib/jvm/java-11-openjdk-armhf/include \
     /usr/lib/jvm/java-11-openjdk-armhf/include/linux
 INCLUDES+=$(foreach d, $(JNI_INCLUDE), -I$d)
 
-all: $(BIN) $(LIB)
+all: libpicam.so $(LIB)
 
 # Meaning: 	$@ = file being generated (the .o file)
 # 			$< = the first prereq (the .c file)
 #			% = wildcard
-# In this case:	$@ = %.o
 
-# This generates .o files from .c files
 %.o: %.c
 	@rm -f $@ 
 	$(CC) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
-%.o: %.cpp
-	@rm -f $@ 
-	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
+# %.o: %.cpp
+# 	@rm -f $@ 
+# 	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
-%.bin: $(OBJS)
-	$(CC) -o $@ -Wl,--whole-archive $(OBJS) $(LDFLAGS) -Wl,--no-whole-archive -rdynamic
+libpicam.so: ${OBJS}
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 
 
 clean:
 	for i in $(OBJS); do (if test -e "$$i"; then ( rm $$i ); fi ); done
 	@rm -f $(BIN) $(LIB)
-
-
+	@rm -f *.o *~ 
 
 
 
