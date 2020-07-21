@@ -15,6 +15,10 @@ JNI_INCLUDE=/usr/lib/jvm/java-11-openjdk-armhf/include \
     /usr/lib/jvm/java-11-openjdk-armhf/include/linux
 INCLUDES+=$(foreach d, $(JNI_INCLUDE), -I$d)
 
+# Add OpenCV library deps
+CFLAGS+=`pkg-config --cflags opencv`
+INCLUDES+=`pkg-config --libs opencv`
+
 all: libpicam.so $(LIB)
 
 # Meaning: 	$@ = file being generated (the .o file)
