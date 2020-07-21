@@ -415,7 +415,7 @@ static void exit_func(void)
 
 //==============================================================================
 
-int main ()
+int triangleMain ()
 {
    bcm_host_init();
 
