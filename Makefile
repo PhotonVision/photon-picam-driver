@@ -1,6 +1,6 @@
 OBJS=triangle.o video.o models.o PicamJNI.o
 
-SRC=triangle.c video.c models.c PicamJNI.c
+SRC=triangle.c video.c models.c PicamJNI.cpp
 
 LDFLAGS+=-lilclient
 
@@ -25,9 +25,9 @@ all: libpicam.so $(LIB)
 	@rm -f $@ 
 	$(CC) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
-# %.o: %.cpp
-# 	@rm -f $@ 
-# 	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
+%.o: %.cpp
+	@rm -f $@ 
+	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
 libpicam.so: ${OBJS}
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 

@@ -26,5 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #pragma once
 
+int triangleMain();
 
 void* video_decode_test(void* arg);
