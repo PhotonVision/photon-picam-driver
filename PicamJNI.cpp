@@ -6,7 +6,7 @@ extern "C" {
 
 #include "triangle.h"
 
-JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(JNIEnv *env, jobject thisObj) {
+JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(JNIEnv *, jobject) {
   printf("Hello World from native code!!\n");
 
   triangleMain();
@@ -15,43 +15,43 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(JNI
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_destroyCamera
-  (JNIEnv *env, jobject thisObj) {
+  (JNIEnv *, jobject) {
    printf("Freeing picam resource...\n");
    return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure
-  (JNIEnv *env, jobject thisObj, jint exposure) {
+  (JNIEnv *, jobject, jint exposure) {
   printf("Setting exposure to %d\n", exposure);
   return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness
-  (JNIEnv *env, jobject thisObj, jint brightness) {
+  (JNIEnv *, jobject, jint brightness) {
   printf("Setting brightness to %d\n", brightness);
   return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setIso
-  (JNIEnv *env, jobject thisObj, jint iso) {
+  (JNIEnv *, jobject, jint iso) {
   printf("Setting iso to %d\n", iso);
   return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation
-  (JNIEnv *env, jobject thisObj, jint rotation) {
+  (JNIEnv *, jobject, jint rotation) {
   printf("Setting rotation to %d\n", rotation);
   return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setVideoMode
-  (JNIEnv *env, jobject thisObj, jint width, jint height, jint fps) {
+  (JNIEnv *, jobject, jint width, jint height, jint fps) {
   printf("Setting video mode to videomode: %d x %d at %d fps\n", width, height, fps);
   return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame
-  (JNIEnv *env, jobject thisObj, jlong frameNativeObj) {
+  (JNIEnv *, jobject, jlong frameNativeObj) {
   printf("Grabbing from Mat@%ld\n", frameNativeObj);
   return true;
 }
