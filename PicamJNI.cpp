@@ -1,9 +1,10 @@
+extern "C" {
+
 #include <jni.h>        // JNI header provided by JDK
 #include <stdio.h>      // C Standard IO Header
 #include "org_photonvision_raspi_PicamJNI.h"   // Generated
 
 #include "triangle.h"
-#include <stdbool.h>
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(JNIEnv *env, jobject thisObj) {
   printf("Hello World from native code!!\n");
@@ -46,10 +47,13 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setVideoMode
   (JNIEnv *env, jobject thisObj, jint width, jint height, jint fps) {
   printf("Setting video mode to videomode: %d x %d at %d fps\n", width, height, fps);
+  return true;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame
   (JNIEnv *env, jobject thisObj, jlong frameNativeObj) {
-  printf("Grabbing from Mat@%d\n", frameNativeObj);
+  printf("Grabbing from Mat@%ld\n", frameNativeObj);
   return true;
 }
+
+}  // extern "C"
