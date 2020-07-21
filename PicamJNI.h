@@ -13,7 +13,7 @@ extern "C" {
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera
-  (JNIEnv *, jobject);
+  (JNIEnv *, jclass);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -21,7 +21,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_destroyCamera
-  (JNIEnv *, jobject);
+  (JNIEnv *, jclass);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -29,7 +29,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_destroyCamera
  * Signature: (I)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -37,7 +37,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure
  * Signature: (I)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -45,7 +45,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness
  * Signature: (I)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setISO
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -53,7 +53,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setISO
  * Signature: (I)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -61,7 +61,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation
  * Signature: (III)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setVideoMode
-  (JNIEnv *, jobject, jint, jint, jint);
+  (JNIEnv *, jclass, jint, jint, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -69,7 +69,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setVideoMode
  * Signature: (J)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jclass, jlong);
 
 #ifdef __cplusplus
 }
