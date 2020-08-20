@@ -1,35 +1,18 @@
 /*
- * Copyright © 2013 Tuomas Jormola <tj@solitudo.net> <http://solitudo.net>
+ * Copyright (C) 2020 Photon Vision.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * <http://www.apache.org/licenses/LICENSE-2.0>
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Short intro about this program:
- *
- * `rpi-camera-playback` records video using the RaspiCam module and displays it
- * on the Raspberry Pi frame buffer display device, i.e. it should be run on the
- * Raspbian console.
- *
- *     $ ./rpi-camera-playback
- *
- * `rpi-camera-playback` uses `camera`, `video_render` and `null_sink` components.
- * `camera` video output port is tunneled to `video_render` input port and
- * `camera` preview output port is tunneled to `null_sink` input port.
- * `video_render` component uses a display region to show the video on local
- * display.
- *
- * Please see README.mdwn for more detailed description of this
- * OpenMAX IL demos for Raspberry Pi bundle.
- *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include <stdlib.h>
@@ -49,11 +32,12 @@
 #include <IL/OMX_Video.h>
 #include <IL/OMX_Broadcom.h>
 
+#include "video.h"
 #include "state.h"
 
 // Hard coded parameters
-#define VIDEO_FRAMERATE                 35
-#define VIDEO_BITRATE                   10000000
+#define VIDEO_FRAMERATE                 90
+#define VIDEO_BITRATE                   1000
 #define CAM_DEVICE_NUMBER               0
 #define CAM_SHARPNESS                   -40                       // -100 .. 100
 #define CAM_CONTRAST                    -10                       // -100 .. 100
@@ -95,10 +79,13 @@ typedef struct {
     VCOS_SEMAPHORE_T handler_lock;
 		OMX_BUFFERHEADERTYPE* eglBuffer;
 		void* eglImage;
+        sem_t* fillBufferDone;
 } appctx;
 
 // Ugly, stupid utility functions
 static void say(const char* message, ...) {
+    #undef DEBUG
+    #ifdef DEBUG
     va_list args;
     char str[1024];
     memset(str, 0, sizeof(str));
@@ -110,6 +97,7 @@ static void say(const char* message, ...) {
         str[str_len] = '\n';
     }
     fprintf(stderr, str);
+    #endif
 }
 
 static void die(const char* message, ...) {
@@ -429,15 +417,23 @@ static void signal_handler(int signal) {
 
 OMX_ERRORTYPE my_fill_buffer_done(OMX_HANDLETYPE hComponent,
 					OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
-{  
-	appctx *ctx = (appctx *) pAppData;
+{
+
+  appctx *ctx = (appctx *) pAppData;
 
   if (OMX_FillThisBuffer(ctx->render, ctx->eglBuffer) != OMX_ErrorNone)
    {
       printf("OMX_FillThisBuffer failed in callback\n");
       exit(1);
    }
-	return OMX_ErrorNone;
+
+   int ret = sem_post(ctx->fillBufferDone);
+   if (ret != 0) {
+       printf("Invalid semaphore\n");
+       exit(1);
+   }
+
+   return OMX_ErrorNone;
 }
 
 // OMX calls this handler for all the events it emits
@@ -481,7 +477,7 @@ static OMX_ERRORTYPE event_handler(
 void *video_decode_test(void* arg) {
     bcm_host_init();
 
-		CUBE_STATE_T *state = (CUBE_STATE_T *)arg;
+	ProgramState *state = (ProgramState *)arg;
 
     OMX_ERRORTYPE r;
 
@@ -496,7 +492,8 @@ void *video_decode_test(void* arg) {
         die("Failed to create handler lock semaphore");
     }
 
-		ctx.eglImage = state->eglImage;
+	ctx.eglImage = state->eglImage;
+    ctx.fillBufferDone = &state->fillBufferDone;
 
     // Init component handles
     OMX_CALLBACKTYPE callbacks;
@@ -509,7 +506,7 @@ void *video_decode_test(void* arg) {
     init_component_handle("null_sink", &ctx.null_sink, &ctx, &callbacks);
     init_component_handle("clock", &ctx.clock, &ctx, &callbacks);
 
-    OMX_U32 screen_width = state->screen_width, screen_height = state->screen_height;
+    OMX_U32 screen_width = state->screenWidth, screen_height = state->screenHeight;
     if(graphics_get_display_size(DISPLAY_DEVICE, &screen_width, &screen_height) < 0) {
         die("Failed to get display size");
     }
@@ -557,8 +554,8 @@ void *video_decode_test(void* arg) {
     if((r = OMX_GetParameter(ctx.camera, OMX_IndexParamPortDefinition, &camera_portdef)) != OMX_ErrorNone) {
         omx_die(r, "Failed to get port definition for camera preview output port 70");
     }
-    camera_portdef.format.video.nFrameWidth  = state->screen_width;
-    camera_portdef.format.video.nFrameHeight = state->screen_height;
+    camera_portdef.format.video.nFrameWidth  = state->screenWidth;
+    camera_portdef.format.video.nFrameHeight = state->screenHeight;
     camera_portdef.format.video.xFramerate   = VIDEO_FRAMERATE << 16;
     // Stolen from gstomxvideodec.c of gst-omx
     camera_portdef.format.video.nStride      = (camera_portdef.format.video.nFrameWidth + camera_portdef.nBufferAlignment - 1) & (~(camera_portdef.nBufferAlignment - 1));
@@ -827,12 +824,12 @@ void *video_decode_test(void* arg) {
     say("Configured port definition for null sink input port 240");
     dump_port(ctx.null_sink, 240, OMX_FALSE);
 
-    say("Enter capture and playback loop, press Ctrl-C to quit...");
-
 		if((r = OMX_FillThisBuffer(ctx.render, ctx.eglBuffer)) != OMX_ErrorNone)
 		{
       omx_die(r, "Failed to fill buffer");
 		}
+
+    say("Enter capture and playback loop, press Ctrl-C to quit...");
 
     signal(SIGINT,  signal_handler);
     signal(SIGTERM, signal_handler);
