@@ -1,43 +1,45 @@
+/*
+ * Copyright (C) 2020 Photon Vision.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #ifndef __STATE_H
 #define __STATE_H
 
-#include "GLES/gl.h"
-#include "GLES2/gl2.h"
-#include "EGL/egl.h"
-#include "EGL/eglext.h"
+#include <semaphore.h>
 
-typedef struct
-{
-   uint32_t screen_width;
-   uint32_t screen_height;
-// OpenGL|ES objects
-   EGLDisplay display;
-   EGLSurface surface;
-   EGLContext context;
-   GLuint tex;
-	 GLuint programObject;
-// model rotation vector and direction
-   GLfloat rot_angle_x_inc;
-   GLfloat rot_angle_y_inc;
-   GLfloat rot_angle_z_inc;
-// current model rotation angles
-   GLfloat rot_angle_x;
-   GLfloat rot_angle_y;
-   GLfloat rot_angle_z;
-// current distance from camera
-   GLfloat distance;
-   GLfloat distance_inc;
-// pointers to texture buffers
-   char *tex_buf1;
-   char *tex_buf2;
-   char *tex_buf3;
+#include <GLES/gl.h>
+#include <GLES2/gl2.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <EGL/eglext_brcm.h>
 
-	 GLuint attr_vertex;
-	 GLuint attr_tex;
-	 GLuint unif_tex;
-	 GLuint unif_thresh;
-	 GLuint unif_color;
-	 void *eglImage;
-} CUBE_STATE_T;
+typedef struct {
+   // Screen size (no alignment gurantees)
+   int screenWidth;
+   int screenHeight;
+
+   // VCSM stuff (buffer must be power of two aligned and is cropped after being copied)
+   unsigned int vcsmBufWidth;
+   unsigned int vcsmBufHeight;
+   struct egl_image_brcm_vcsm_info vcsmInfo;
+   unsigned char intermediateBuffer[2048 * 2048 * 4]; // Used when copying out and cropping shared memory
+
+   // Used by OMX
+   void *eglImage;
+   sem_t fillBufferDone;
+} ProgramState;
 
 #endif
