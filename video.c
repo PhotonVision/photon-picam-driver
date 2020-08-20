@@ -217,7 +217,7 @@ static const char *dump_compression_format(OMX_VIDEO_CODINGTYPE c) {
     if (f == NULL) {
       die("Failed to allocate memory");
     }
-    snprintf(f, 23 * sizeof(char) - 1, "format type 0x%08x", c);
+    snprintf(f, 23 * sizeof(char), "format type 0x%08x", c);
     return f;
   }
 }
@@ -340,7 +340,7 @@ static const char *dump_color_format(OMX_COLOR_FORMATTYPE c) {
     if (f == NULL) {
       die("Failed to allocate memory");
     }
-    snprintf(f, 23 * sizeof(char) - 1, "format type 0x%08x", c);
+    snprintf(f, 23 * sizeof(char), "format type 0x%08x", c);
     return f;
   }
 }
