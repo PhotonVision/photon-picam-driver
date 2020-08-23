@@ -1,6 +1,6 @@
-OBJS=video.o models.o PicamJNI.o
+OBJS=video.o PicamJNI.o
 
-SRC=video.c models.c PicamJNI.cpp
+SRC=video.c PicamJNI.cpp
 
 LDFLAGS+=-lilclient
 
