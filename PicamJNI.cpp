@@ -43,8 +43,14 @@ static_assert(sizeof(void *) <= sizeof(jlong));
 static ProgramState state{};
 static pthread_t omxThread;
 
+namespace {
 unsigned int nextPowerOfTwo(unsigned int num) {
   return static_cast<unsigned int>(std::pow(2, std::ceil(std::log2(num))));
+}
+
+void initGL(ProgramState* state) {
+
+}
 }
 
 JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_initVCSMInfo(
@@ -147,7 +153,8 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
   if (s.width != state.screenWidth || s.height != state.screenHeight ||
       outImage.channels() != 1) {
     std::cerr
-        << "Passed Mat is incorrectly sized or has more than one channel\n";
+        << "Passed Mat is incorrectly sized or has more than one channel"
+        << "(" << s.width << ", " << s.height << ", " << outImage.channels() << ")\n";
     return;
   }
 
@@ -165,23 +172,29 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
   int bound = state.vcsmBufWidth * (state.screenHeight - 1) +
               state.screenWidth; // IMPORTANT! Bound must be calculated here or
                                  // GCC doesn't vectorize the loop
+  std::cout << "Bound: " << bound std::endl;
   for (int i = 0; i < bound; i++) {
     // We keep an intermediate buffer because memcpy can't deal with overlapping
     // copies (memmove does, but it slower)
     state.intermediateBuffer[i] = vcsmBuffer[i * 4];
   }
 
+  std::cout << "VCSM: " << static_cast<unsigned>(vcsmBuffer[0]) << std::endl;
+  std::cout << "Intermediate: " << static_cast<unsigned>(state.intermediateBuffer[0]) << std::endl;
+
   // Release the locked texture memory
   vcsm_unlock_ptr(vcsmBuffer);
 
   // Crop out the bits we don't need (this is needed because the shared memory
   // must be a power of two in both width and height)
-  unsigned char *outBuf = outImage.ptr();
+  unsigned char *outBuf = outImage.data;
   for (int y = 0; y < state.screenHeight; y++) {
     std::memcpy(outBuf + y * state.screenWidth,
                 state.intermediateBuffer + y * state.vcsmBufWidth,
                 state.screenWidth);
   }
+
+  //std::memset(outBuf, 0xFF, s.width * s.height * outImage.channels());
 }
 
 } // extern "C"
