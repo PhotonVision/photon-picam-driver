@@ -1,14 +1,13 @@
-OBJS=video.o PicamJNI.o
+# Pick up the appropriate files and make a runnable binary
+OBJS=PicamJNI.o RaspiTex.o RaspiTexUtil.o RaspiCamControl.o RaspiHelpers.o vcsm_square.o TesterMain.o
+SRC=TesterMain.cpp PicamJNI.cpp RaspiTex.c RaspiCamControl.c RaspiHelpers.c RaspiTexUtil.c vcsm_square.c
 
-SRC=video.c PicamJNI.cpp
+# We need these so that GCC vectorizes the loop that copies out every fourth pixel from VCSM
+CFLAGS+=-O3 -mfpu=neon -ftree-vectorize -fPIC -g
 
-LDFLAGS+=-lilclient
-
-CFLAGS+=-DSTANDALONE -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -DTARGET_POSIX -D_LINUX -fPIC -DPIC -D_REENTRANT -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -U_FORTIFY_SOURCE -Wall -g -DHAVE_LIBOPENMAX=2 -DOMX -DOMX_SKIP64BIT -O3 -mfpu=neon -ftree-vectorize -pipe -DUSE_EXTERNAL_OMX -DHAVE_LIBBCM_HOST -DUSE_EXTERNAL_LIBBCM_HOST -DUSE_VCHIQ_ARM -Wno-psabi
-
-LDFLAGS+=-L$(SDKSTAGE)/opt/vc/lib/ -lbrcmGLESv2 -lbrcmEGL -lopenmaxil -lbcm_host -lvcos -lvchiq_arm -lpthread -lrt -lm -L$(SDKSTAGE)/opt/vc/src/hello_pi/libs/ilclient -L$(SDKSTAGE)/opt/vc/src/hello_pi/libs/vgfont -L$(SDKSTAGE)/opt/vc/src/hello_pi/libs/revision
-
-INCLUDES+=-I$(SDKSTAGE)/opt/vc/include/ -I$(SDKSTAGE)/opt/vc/include/interface/vcos/pthreads -I$(SDKSTAGE)/opt/vc/include/interface/vmcs_host/linux -I./ -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/ilclient -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/vgfont -I$(SDKSTAGE)/opt/vc/src/hello_pi/libs/revision -I$(SDKSTAGE)/usr/lib/jvm/java-11-openjdk-armhf/include/ -I$(SDKSTAGE)/usr/lib/jvm/java-11-openjdk-armhf/include/linux/
+# Looots of dependencies
+LDFLAGS+=-lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvcsm -lmmal -lmmal_core -lmmal_util -lm -ldl -lpthread -lstdc++
+INCLUDES+=-I$(SDKSTAGE)/opt/vc/include/
 
 # Include JNI files from the default JDK
 JNI_INCLUDE=/usr/lib/jvm/java-11-openjdk-armhf/include \
@@ -18,6 +17,9 @@ INCLUDES+=$(foreach d, $(JNI_INCLUDE), -I$d)
 # Add OpenCV library deps
 CFLAGS+=`pkg-config --cflags opencv`
 INCLUDES+=`pkg-config --libs opencv`
+LDFLAGS+=`pkg-config --libs opencv`
+
+include ../Makefile.include
 
 all: libpicam.so $(LIB)
 
@@ -33,10 +35,10 @@ all: libpicam.so $(LIB)
 	@rm -f $@ 
 	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
+tester: ${OBJS}
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ ${OBJS} $(LDFLAGS)
+
 libpicam.so: ${OBJS}
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 
 
-clean:
-	for i in $(OBJS); do (if test -e "$$i"; then ( rm $$i ); fi ); done
-	@rm -f $(BIN) $(LIB)
-	@rm -f *.o *~ 
+$(info ${OBJS})
