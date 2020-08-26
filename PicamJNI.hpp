@@ -9,22 +9,6 @@ extern "C" {
 #endif
 /*
  * Class:     org_photonvision_raspi_PicamJNI
- * Method:    initVCSMInfo
- * Signature: (II)J
- */
-JNIEXPORT jlong JNICALL
-Java_org_photonvision_raspi_PicamJNI_initVCSMInfo(JNIEnv *, jclass, jint, jint);
-
-/*
- * Class:     org_photonvision_raspi_PicamJNI
- * Method:    setEGLHandles
- * Signature: (J)Z
- */
-JNIEXPORT jboolean JNICALL
-Java_org_photonvision_raspi_PicamJNI_setEGLImageHandle(JNIEnv *, jclass, jlong);
-
-/*
- * Class:     org_photonvision_raspi_PicamJNI
  * Method:    createCamera
  * Signature: (III)Z
  */
@@ -33,19 +17,19 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
- * Method:    waitForOMXFillBufferDone
- * Signature: ()V
- */
-JNIEXPORT void JNICALL
-Java_org_photonvision_raspi_PicamJNI_waitForOMXFillBufferDone(JNIEnv *, jclass);
-
-/*
- * Class:     org_photonvision_raspi_PicamJNI
  * Method:    destroyCamera
  * Signature: ()Z
  */
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass);
+
+/*
+ * Class:     org_photonvision_raspi_PicamJNI
+ * Method:    setThresholds
+ * Signature: (DDDDDD)V
+ */
+JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
+    JNIEnv *, jclass, jdouble, jdouble, jdouble, jdouble, jdouble, jdouble);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -65,12 +49,11 @@ Java_org_photonvision_raspi_PicamJNI_setBrightness(JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
- * Method:    setISO
+ * Method:    setGain
  * Signature: (I)Z
  */
-JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setISO(JNIEnv *,
-                                                                       jclass,
-                                                                       jint);
+JNIEXPORT jboolean JNICALL
+Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
@@ -83,11 +66,10 @@ Java_org_photonvision_raspi_PicamJNI_setRotation(JNIEnv *, jclass, jint);
 /*
  * Class:     org_photonvision_raspi_PicamJNI
  * Method:    grabFrame
- * Signature: (J)V
+ * Signature: ()J
  */
-JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(JNIEnv *,
-                                                                      jclass,
-                                                                      jlong);
+JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(JNIEnv *,
+                                                                       jclass);
 
 #ifdef __cplusplus
 }

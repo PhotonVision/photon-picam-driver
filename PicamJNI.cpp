@@ -18,7 +18,9 @@
 #include <opencv2/core/core.hpp>
 
 #include <cmath>
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 
 #include "PicamJNI.hpp" // Generated
 
@@ -26,63 +28,184 @@ extern "C" {
 
 #include <jni.h>
 
+#include "RaspiCamControl.h"
+#include "RaspiTex.h"
+
 #include <bcm_host.h>
-#include <interface/vcsm/user-vcsm.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
-#include <pthread.h>
-
-#include "state.h"
-#include "video.h"
+#include <interface/mmal/mmal.h>
+#include <interface/mmal/mmal_parameters_camera.h>
+#include <interface/mmal/util/mmal_connection.h>
+#include <interface/mmal/util/mmal_default_components.h>
+#include <interface/mmal/util/mmal_util_params.h>
 
 // We use jlongs like pointers, so they better be large enough
 static_assert(sizeof(void *) <= sizeof(jlong));
 
-static ProgramState state{};
-static pthread_t omxThread;
+struct MMAL_STATE {
+  MMAL_COMPONENT_T *camera;
+  MMAL_COMPONENT_T *preview;
+  MMAL_ES_FORMAT_T *format;
+  MMAL_STATUS_T status;
+  MMAL_PORT_T *camera_preview_port, *camera_video_port, *camera_still_port;
+  MMAL_PORT_T *preview_input_port;
+
+  MMAL_CONNECTION_T *camera_preview_connection;
+};
+
+#define MMAL_CAMERA_PREVIEW_PORT 0
+#define MMAL_CAMERA_VIDEO_PORT 1
+#define MMAL_CAMERA_STILLS_PORT 2
+
+RASPITEX_STATE tex_state{};
+MMAL_STATE mmal_state{};
+
+std::mutex color_mutex;
+std::condition_variable color_cv;
+cv::Mat *color_mat = nullptr;
+
+std::mutex threshold_mutex;
+std::condition_variable threshold_cv;
+cv::Mat *threshold_mat = nullptr;
+
+std::mutex hsv_uniforms_mutex;
+std::array<double, 6> hsv_thresholds = {0, 0, 0, 1, 1, 0.5};
 
 namespace {
-unsigned int nextPowerOfTwo(unsigned int num) {
-  return static_cast<unsigned int>(std::pow(2, std::ceil(std::log2(num))));
-}
+void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
+                unsigned int width, unsigned int height) {
+  int status;
 
-void initGL(ProgramState* state) {
+  bcm_host_init();
 
-}
-}
-
-JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_initVCSMInfo(
-    JNIEnv *, jclass, jint width, jint height) {
-  vcsm_init();
-
-  state.vcsmBufWidth = nextPowerOfTwo(width);
-  state.vcsmBufHeight = nextPowerOfTwo(height);
-  state.vcsmInfo.width = state.vcsmBufWidth;
-  state.vcsmInfo.height = state.vcsmBufHeight;
-
-  if (state.vcsmBufWidth > 2048 || state.vcsmBufHeight > 2048) {
-    std::cerr << "VCSM doesn't support buffers with a width or height greater "
-                 "than 2048\n";
-    return 0;
+  status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA, &state->camera);
+  if (status != MMAL_SUCCESS) {
+    std::ostringstream msg;
+    msg << "Couldn't create MMAL camera component : error " << status;
+    throw std::runtime_error{msg.str()};
   }
 
-  return reinterpret_cast<jlong>(&state.vcsmInfo);
-}
+  MMAL_PARAMETER_INT32_T camera_num = {
+      {MMAL_PARAMETER_CAMERA_NUM, sizeof(camera_num)},
+      0 /* camera num of zero */};
 
-JNIEXPORT jboolean JNICALL
-Java_org_photonvision_raspi_PicamJNI_setEGLImageHandle(JNIEnv *, jclass,
-                                                       jlong eglImage) {
-  if (eglImage < 0) {
-    std::cerr << "EGLImage ID cannot be negative\n";
-    return true;
+  status = mmal_port_parameter_set(state->camera->control, &camera_num.hdr);
+  if (status != MMAL_SUCCESS) {
+    std::ostringstream msg;
+    msg << "Couldn't set MMAL camera component number : error " << status;
+    throw std::runtime_error{msg.str()};
+  }
+  if (!state->camera->output_num) {
+    status = MMAL_ENOSYS;
+    throw std::runtime_error{"Camera doesn't have any output ports"};
   }
 
-  state.eglImage = reinterpret_cast<void *>(eglImage);
+  status = mmal_port_parameter_set_uint32(
+      state->camera->control, MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG,
+      0 /* automatic sensor mode selection */);
+  if (status != MMAL_SUCCESS) {
+    std::ostringstream msg;
+    msg << "Couldn't set camera sensor mode : error " << status;
+    throw std::runtime_error{msg.str()};
+  }
 
-  return false;
+  state->camera_preview_port = state->camera->output[MMAL_CAMERA_PREVIEW_PORT];
+  state->camera_video_port = state->camera->output[MMAL_CAMERA_VIDEO_PORT];
+  state->camera_still_port = state->camera->output[MMAL_CAMERA_STILLS_PORT];
+
+  {
+    MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
+        {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
+        .max_stills_w = width,
+        .max_stills_h = height,
+        .stills_yuv422 = 0,
+        .one_shot_stills = 1,
+        .max_preview_video_w = width,
+        .max_preview_video_h = height,
+        .num_preview_video_frames = 3,
+        .stills_capture_circular_buffer_height = 0,
+        .fast_preview_resume = 0,
+        .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC};
+    mmal_port_parameter_set(state->camera->control, &cam_config.hdr);
+  }
+
+  raspicamcontrol_set_all_parameters(state->camera, cam_params);
+
+  state->format = state->camera_preview_port->format;
+
+  state->format->encoding = MMAL_ENCODING_OPAQUE;
+  state->format->encoding_variant = MMAL_ENCODING_I420;
+
+  std::cout << "Shutter speed: " << cam_params->shutter_speed << std::endl;
+  if(cam_params->shutter_speed > 6000000) {
+    MMAL_PARAMETER_FPS_RANGE_T fps_range = {
+        {MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
+        { 5, 1000 }, {166, 1000}
+    };
+    mmal_port_parameter_set(state->camera_preview_port, &fps_range.hdr);
+  } else if(cam_params->shutter_speed > 1000000) {
+    MMAL_PARAMETER_FPS_RANGE_T fps_range = {
+        {MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
+        { 166, 1000 }, {999, 1000}
+    };
+    mmal_port_parameter_set(state->camera_preview_port, &fps_range.hdr);
+  }
+
+  state->format->es->video.width = VCOS_ALIGN_UP(width, 32);
+  state->format->es->video.height = VCOS_ALIGN_UP(height, 16);
+  state->format->es->video.crop.x = 0;
+  state->format->es->video.crop.y = 0;
+  state->format->es->video.crop.width = VCOS_ALIGN_UP(width, 32);
+  state->format->es->video.crop.height = VCOS_ALIGN_UP(height, 16);
+
+  state->format->es->video.frame_rate.num = 0; // Variable framerate
+  state->format->es->video.frame_rate.den = 1;
+
+  status = mmal_port_format_commit(state->camera_preview_port);
+  if (status != MMAL_SUCCESS) {
+    throw std::runtime_error{"Preview port format couldn't be set"};
+  }
+
+  status = mmal_component_enable(state->camera);
+  if (status != MMAL_SUCCESS) {
+    throw std::runtime_error{"Couldn't enable camera component"};
+  }
 }
+
+void enqueue_color_mat(unsigned char *uncropped_rgb, int cropped_width,
+                       int cropped_height) {
+  // TODO
+}
+
+void enqueue_threshold_mat(unsigned char *uncropped_a, int cropped_width,
+                           int cropped_height, int uncropped_width) {
+  {
+    std::lock_guard<std::mutex> lk(threshold_mutex);
+
+    if (threshold_mat) {
+      delete threshold_mat;
+    }
+
+    // This heap-allocated map is passed to Java code where it is eventually
+    // destroyed
+    threshold_mat = new cv::Mat(cropped_height, cropped_width, CV_8UC1);
+
+    unsigned char *outBuf = threshold_mat->data;
+    for (int y = 0; y < cropped_height; y++) {
+      std::memcpy(outBuf + y * cropped_width, uncropped_a + y * uncropped_width,
+                  cropped_width);
+    }
+  }
+
+  threshold_cv.notify_all();
+}
+
+void get_thresholds(double lower[3], double upper[3]) {
+  std::lock_guard<std::mutex> lk(hsv_uniforms_mutex);
+  std::copy(hsv_thresholds.begin(), hsv_thresholds.begin() + 3, lower);
+  std::copy(hsv_thresholds.begin() + 3, hsv_thresholds.end(), upper);
+}
+} // namespace
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
     JNIEnv *, jclass, jint width, jint height, jint fps) {
@@ -90,34 +213,46 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
     if (width < 0 || height < 0 || fps < 0) {
       throw std::runtime_error{"Width, height, and FPS must be positive"};
     }
-    state.screenWidth = width;
-    state.screenHeight = height;
 
-    sem_init(&state.fillBufferDone, 0, 1);
+    std::cout << "Setting up MMAL, EGL, and OpenGL for " << width << "x" << height << std::endl;
 
-    // Init Broadcom libs (this has probably already been done by JOGL, but
-    // we'll be defensive)
-    bcm_host_init();
+    int ret;
 
-    std::cout << "bcm_host_init done; creating OMX thread\n";
+    raspitex_set_defaults(&tex_state);
+    tex_state.width = static_cast<unsigned int>(width);
+    tex_state.height = static_cast<unsigned int>(height);
+    tex_state.enqueue_threshold_mat = enqueue_threshold_mat;
+    tex_state.get_thresholds = get_thresholds;
+    ret = raspitex_init(&tex_state);
+    if (ret != 0) {
+      throw std::runtime_error{
+          "Couldn't initialize OpenGL and DispmanX native window"};
+    }
 
-    pthread_create(&omxThread, nullptr, video_decode_test, &state);
+    RASPICAM_CAMERA_PARAMETERS cam_params{};
+    raspicamcontrol_set_defaults(&cam_params);
 
-    std::cout << std::flush;
+    setup_mmal(&mmal_state, &cam_params, tex_state.width,
+               tex_state.height); // Throws
+
+    ret = raspitex_configure_preview_port(&tex_state,
+                                          mmal_state.camera_preview_port);
+    if (ret != 0) {
+      throw std::runtime_error{"Couldn't configure MMAL preview port"};
+    }
+
+    std::cout << "Setup done; starting OpenGL and capture worker" << std::endl;
+
+    ret = raspitex_start(&tex_state);
+    if (ret != 0) {
+      throw std::runtime_error{"Couldn't start capture worker"};
+    }
 
     return false;
-  } catch (const std::exception &e) {
+  } catch (const std::runtime_error &e) {
     std::cerr << e.what() << std::endl;
     return true;
   }
-}
-
-JNIEXPORT void JNICALL
-Java_org_photonvision_raspi_PicamJNI_waitForOMXFillBufferDone(JNIEnv *,
-                                                              jclass) {
-  sem_wait(&state.fillBufferDone);
-
-  return;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -125,19 +260,32 @@ Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
   return false;
 }
 
+JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
+    JNIEnv *, jclass, jdouble h_l, jdouble s_l, jdouble v_l, jdouble h_u, jdouble s_u, jdouble v_u) {
+  std::lock_guard<std::mutex> lk(hsv_uniforms_mutex);
+  // You _can_ pass a jdouble[], but it's slow and unpleasant
+  hsv_thresholds[0] = h_l;
+  hsv_thresholds[1] = s_l;
+  hsv_thresholds[2] = v_l;
+  hsv_thresholds[3] = h_u;
+  hsv_thresholds[4] = s_u;
+  hsv_thresholds[5] = v_u;
+}
+
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
     JNIEnv *, jclass, jint exposure) {
-  return false;
+  return raspicamcontrol_set_exposure_compensation(mmal_state.camera, exposure);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
     JNIEnv *, jclass, jint brightness) {
-  return false;
+  return raspicamcontrol_set_brightness(mmal_state.camera, brightness);
 }
 
 JNIEXPORT jboolean JNICALL
-Java_org_photonvision_raspi_PicamJNI_setIso(JNIEnv *, jclass, jint iso) {
-  return false;
+Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
+  // TODO: this takes two parameters, but V4L2/cscore only exposes one
+  return raspicamcontrol_set_gains(mmal_state.camera, gain, 1.0);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
@@ -145,56 +293,19 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
   return false;
 }
 
-JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
-    JNIEnv *, jclass, jlong imageNativeObj) {
-  cv::Mat &outImage = *((cv::Mat *)imageNativeObj);
+JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(JNIEnv *,
+                                                                       jclass) {
+  std::unique_lock<std::mutex> lk(threshold_mutex);
+  threshold_cv.wait(lk, [] { return threshold_mat != nullptr; });
+  // We now own the lock, so threshold_mat is guranteed to point to something
+  // valid and is not being modified by the capture thread
 
-  cv::Size s = outImage.size();
-  if (s.width != state.screenWidth || s.height != state.screenHeight ||
-      outImage.channels() != 1) {
-    std::cerr
-        << "Passed Mat is incorrectly sized or has more than one channel"
-        << "(" << s.width << ", " << s.height << ", " << outImage.channels() << ")\n";
-    return;
-  }
+  cv::Mat *out = threshold_mat;
+  threshold_mat = nullptr;
 
-  // Make the buffer CPU addressable with host cache enabled
-  VCSM_CACHE_TYPE_T cacheType;
-  unsigned char *vcsmBuffer = static_cast<unsigned char *>(vcsm_lock_cache(
-      state.vcsmInfo.vcsm_handle, VCSM_CACHE_TYPE_HOST, &cacheType));
-  if (!vcsmBuffer) {
-    std::cerr << "Failed to lock VCSM buffer\n";
-    return;
-  }
-
-  // First we copy out every fourth byte (we need a single channel image, but
-  // the shared memory we map can only RGBA--i.e. 4 bytes per pixel)
-  int bound = state.vcsmBufWidth * (state.screenHeight - 1) +
-              state.screenWidth; // IMPORTANT! Bound must be calculated here or
-                                 // GCC doesn't vectorize the loop
-  std::cout << "Bound: " << bound std::endl;
-  for (int i = 0; i < bound; i++) {
-    // We keep an intermediate buffer because memcpy can't deal with overlapping
-    // copies (memmove does, but it slower)
-    state.intermediateBuffer[i] = vcsmBuffer[i * 4];
-  }
-
-  std::cout << "VCSM: " << static_cast<unsigned>(vcsmBuffer[0]) << std::endl;
-  std::cout << "Intermediate: " << static_cast<unsigned>(state.intermediateBuffer[0]) << std::endl;
-
-  // Release the locked texture memory
-  vcsm_unlock_ptr(vcsmBuffer);
-
-  // Crop out the bits we don't need (this is needed because the shared memory
-  // must be a power of two in both width and height)
-  unsigned char *outBuf = outImage.data;
-  for (int y = 0; y < state.screenHeight; y++) {
-    std::memcpy(outBuf + y * state.screenWidth,
-                state.intermediateBuffer + y * state.vcsmBufWidth,
-                state.screenWidth);
-  }
-
-  //std::memset(outBuf, 0xFF, s.width * s.height * outImage.channels());
+  return reinterpret_cast<jlong>(out);
+  // The lock is released automatically; the capture thread can change what
+  // threshold mat points to
 }
 
 } // extern "C"
