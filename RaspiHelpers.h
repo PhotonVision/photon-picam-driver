@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef RASPICAM_HELPERS
 #define RASPICAM_HELPERS
 
+void check_disable_port(MMAL_PORT_T *port);
 int mmal_status_to_int(MMAL_STATUS_T status);
 
 #endif
