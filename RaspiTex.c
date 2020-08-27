@@ -213,6 +213,8 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
       mmal_buffer_header_release(state->preview_buf);
 
     state->preview_buf = buf;
+  } else {
+    goto end;
   }
 
   /*  Do the drawing */

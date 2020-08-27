@@ -38,6 +38,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interface/vcos/vcos.h"
 
 /**
+ * Checks if specified port is valid and enabled, then disables it
+ *
+ * @param port  Pointer the port
+ *
+ */
+void check_disable_port(MMAL_PORT_T *port)
+{
+   if (port && port->is_enabled)
+      mmal_port_disable(port);
+}
+
+/**
  * Convert a MMAL status return value to a simple boolean of success
  * ALso displays a fault if code is not success
  *

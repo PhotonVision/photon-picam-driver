@@ -30,6 +30,7 @@ extern "C" {
 
 #include "RaspiCamControl.h"
 #include "RaspiTex.h"
+#include "RaspiHelpers.h"
 
 #include <bcm_host.h>
 
@@ -56,6 +57,8 @@ struct MMAL_STATE {
 #define MMAL_CAMERA_PREVIEW_PORT 0
 #define MMAL_CAMERA_VIDEO_PORT 1
 #define MMAL_CAMERA_STILLS_PORT 2
+
+constexpr int video_framerate = 120;
 
 RASPITEX_STATE tex_state{};
 MMAL_STATE mmal_state{};
@@ -116,40 +119,27 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   {
     MMAL_PARAMETER_CAMERA_CONFIG_T cam_config = {
         {MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
-        .max_stills_w = width,
-        .max_stills_h = height,
+        .max_stills_w = 32,
+        .max_stills_h = 32,
         .stills_yuv422 = 0,
         .one_shot_stills = 1,
         .max_preview_video_w = width,
         .max_preview_video_h = height,
-        .num_preview_video_frames = 3,
+        .num_preview_video_frames = 3 + vcos_max(0, (video_framerate-30)/10),
         .stills_capture_circular_buffer_height = 0,
         .fast_preview_resume = 0,
         .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC};
     mmal_port_parameter_set(state->camera->control, &cam_config.hdr);
   }
 
-  raspicamcontrol_set_all_parameters(state->camera, cam_params);
+  status = raspicamcontrol_set_all_parameters(state->camera, cam_params);
+  if (status != 0)
+    throw std::runtime_error{"Couldn't set all camera parameters"};
 
   state->format = state->camera_preview_port->format;
 
   state->format->encoding = MMAL_ENCODING_OPAQUE;
   state->format->encoding_variant = MMAL_ENCODING_I420;
-
-  std::cout << "Shutter speed: " << cam_params->shutter_speed << std::endl;
-  if(cam_params->shutter_speed > 6000000) {
-    MMAL_PARAMETER_FPS_RANGE_T fps_range = {
-        {MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
-        { 5, 1000 }, {166, 1000}
-    };
-    mmal_port_parameter_set(state->camera_preview_port, &fps_range.hdr);
-  } else if(cam_params->shutter_speed > 1000000) {
-    MMAL_PARAMETER_FPS_RANGE_T fps_range = {
-        {MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
-        { 166, 1000 }, {999, 1000}
-    };
-    mmal_port_parameter_set(state->camera_preview_port, &fps_range.hdr);
-  }
 
   state->format->es->video.width = VCOS_ALIGN_UP(width, 32);
   state->format->es->video.height = VCOS_ALIGN_UP(height, 16);
@@ -158,7 +148,7 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   state->format->es->video.crop.width = VCOS_ALIGN_UP(width, 32);
   state->format->es->video.crop.height = VCOS_ALIGN_UP(height, 16);
 
-  state->format->es->video.frame_rate.num = 0; // Variable framerate
+  state->format->es->video.frame_rate.num = video_framerate;
   state->format->es->video.frame_rate.den = 1;
 
   status = mmal_port_format_commit(state->camera_preview_port);
@@ -257,6 +247,29 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
+  raspitex_stop(&tex_state);
+  raspitex_destroy(&tex_state);
+
+  // Disable all ports not handled by connections
+  check_disable_port(mmal_state.camera_video_port);
+  check_disable_port(mmal_state.camera_still_port);
+
+  // Disable connections
+  if (mmal_state.camera_preview_connection)
+    mmal_connection_destroy(mmal_state.camera_preview_connection);
+
+  // Disable components
+  if (mmal_state.camera)
+    mmal_component_disable(mmal_state.camera);
+  if (mmal_state.preview)
+    mmal_component_disable(mmal_state.preview);
+
+  // Destroy the camera component
+  if (mmal_state.camera) {
+    mmal_component_destroy(mmal_state.camera);
+    mmal_state.camera = nullptr;
+  }
+
   return false;
 }
 
