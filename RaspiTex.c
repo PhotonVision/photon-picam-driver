@@ -171,6 +171,8 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
    * viewfinder frames this can consume a lot of GPU memory for high-resolution
    * viewfinders.
    */
+  double start, end;
+  start = get_wall_time();
   if (buf) {
     /* Update the texture to the new viewfinder image which should */
     if (state->ops.update_texture) {
@@ -216,18 +218,18 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
   } else {
     goto end;
   }
+  end = get_wall_time();
+  // printf("update textures: %f\n", end - start);
 
   /*  Do the drawing */
   if (check_egl_image(state) == 0) {
-    rc = state->ops.update_model(state);
-    if (rc != 0)
-      goto end;
+    // rc = state->ops.update_model(state);
+    // if (rc != 0)
+    //   goto end;
 
     rc = state->ops.redraw(state);
     if (rc != 0)
       goto end;
-
-    raspitex_do_capture(state);
 
     // eglSwapBuffers(state->display, state->surface);
     update_fps();

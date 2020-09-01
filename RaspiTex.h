@@ -110,7 +110,9 @@ typedef struct RASPITEX_CAPTURE {
   int request;
 } RASPITEX_CAPTURE;
 
-typedef void (*enqueue_mat)(unsigned char *, int, int, int);
+// typedef void (*enqueue_mat)(unsigned char *, int, int, int);
+typedef void (*wait_for_vcsm_available)(void);
+typedef void (*enqueue_unpicked_mat)(unsigned char *, int, int, int, int);
 typedef void (*get_hsv_threshold)(double[3], double[3]); // Array always has a size of six
 
 /**
@@ -141,8 +143,10 @@ typedef struct RASPITEX_STATE {
   int gl_win_defined; /// Use rect from --glwin instead of preview
 
   /* Function pointers for getting data out of VCSM square */
-  enqueue_mat enqueue_color_mat;
-  enqueue_mat enqueue_threshold_mat;
+  // enqueue_mat enqueue_color_mat;
+  // enqueue_mat enqueue_threshold_mat;
+  enqueue_unpicked_mat enqueue_mat;
+  wait_for_vcsm_available wait_for_vcsm_read_done;
 
   /* Function pointers for getting the current HSV thresholds */
   get_hsv_threshold get_thresholds;

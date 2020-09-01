@@ -54,7 +54,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vcsm_square.h"
 #include "RaspiTex.h"
 #include "RaspiTexUtil.h"
-#include "interface/vcsm/user-vcsm.h"
+#include <interface/vcsm/user-vcsm.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -84,15 +84,15 @@ static RASPITEXUTIL_SHADER_PROGRAM_T vcsm_square_oes_shader = {
                        "uniform vec3 upperThresh;"
                        "uniform samplerExternalOES tex;"
                        ""
-                       "vec3 rgb2hsv(vec3 c) {"
-                       "  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
+                       "vec3 rgb2hsv(const vec3 p) {"
+                       "  const vec4 H = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
                        // Using ternary seems to be faster than using mix and step
-                       "  vec4 p = c.g < c.b ? vec4(c.bg, K.wz) : vec4(c.gb, K.xy);"
-                       "  vec4 q = c.r < p.x ? vec4(p.xyw, c.r) : vec4(c.r, p.yzx);"
+                       "  vec4 o = p.g < p.b ? vec4(p.bg, H.wz) : vec4(p.gb, H.xy);"
+                       "  vec4 t = p.r < o.x ? vec4(o.xyw, p.r) : vec4(p.r, o.yzx);"
                        ""
-                       "  float d = q.x - min(q.w, q.y);"
-                       "  float e = 1.0e-10;"
-                       "  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);"
+                       "  float O = t.x - min(t.w, t.y);"
+                       "  const float n = 1.0e-10;"
+                       "  return vec3(abs(t.z + (t.w - t.y) / (6.0 * O + n)), O / (t.x + n), t.x);"
                        "}"
                        ""
                        "bool inRange(vec3 hsv) {"
@@ -104,7 +104,8 @@ static RASPITEXUTIL_SHADER_PROGRAM_T vcsm_square_oes_shader = {
                        "void main(void) {"
                        "  vec3 col = texture2D(tex, texcoord).rgb;"
                        // TODO: put color into the RGB elements of the vec4
-                       "  gl_FragColor = inRange(rgb2hsv(col)) ? vec4(1.0, 1.0, 1.0, 1.0) : vec4(0.0, 0.0, 0.0, 0.0);"
+                       //  "  gl_FragColor = vec4(col.r, col.g, int(inRange(rgb2hsv(col))), (col.r + col.g + col.b) / 3.0);"
+                       "  gl_FragColor = vec4(col, int(inRange(rgb2hsv(col))));"
                        "}",
     .uniform_names = {"tex", "lowerThresh", "upperThresh"},
     .attribute_names = {"vertex"},
@@ -117,11 +118,16 @@ static GLfloat quad_varray[] = {
 
 static GLuint quad_vbo;
 
-static struct egl_image_brcm_vcsm_info vcsm_info;
-static EGLImageKHR eglFbImage;
+typedef struct {
+  struct egl_image_brcm_vcsm_info vcsm_info;
+  EGLImageKHR egl_fb_image;
 
-static GLuint fb_tex_name;
-static GLuint fb_name;
+  GLuint tex_name;
+  GLuint name;
+} FRAMEBUFFER;
+
+int current_fb_idx = 0;
+FRAMEBUFFER framebuffers[2] = {};
 
 // VCSM buffer dimensions must be a power of two. Use glViewPort to draw NPOT
 // rectangles within the VCSM buffer.
@@ -144,7 +150,41 @@ static const EGLint vcsm_square_egl_config_attribs[] = {EGL_RED_SIZE,
                                                         EGL_OPENGL_ES2_BIT,
                                                         EGL_NONE};
 
+// Initializes and binds a framebuffer bound to a ELG_IMAGE_BRCM_VCSM EGLImage
+static int init_framebuffer(FRAMEBUFFER *fb, RASPITEX_STATE *raspitex_state) {
+  GLCHK(glGenFramebuffers(1, &fb->name));
+  GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, fb->name));
+
+  GLCHK(glGenTextures(1, &fb->tex_name));
+  GLCHK(glBindTexture(GL_TEXTURE_2D, fb->tex_name));
+  GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+  GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+
+  fb->vcsm_info.width = fb_width;
+  fb->vcsm_info.height = fb_height;
+  fb->egl_fb_image = eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
+                                 EGL_IMAGE_BRCM_VCSM, &fb->vcsm_info, NULL);
+  if (fb->egl_fb_image == EGL_NO_IMAGE_KHR || fb->vcsm_info.vcsm_handle == 0) {
+    vcos_log_error("%s: Failed to create EGL VCSM image\n", VCOS_FUNCTION);
+    return -1;
+  }
+
+  GLCHK(glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, fb->egl_fb_image));
+
+  GLCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, fb->tex_name, 0));
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    vcos_log_error("GL_FRAMEBUFFER is not complete\n");
+    return -1;
+  }
+
+  GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+  return 0;
+}
+
 static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
+  printf("Using VCSM\n");
+
   int rc = vcsm_init();
   vcos_log_trace("%s: vcsm_init %d", VCOS_FUNCTION, rc);
 
@@ -153,7 +193,6 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
 
   raspitex_state->egl_config_attribs = vcsm_square_egl_config_attribs;
   rc = raspitexutil_gl_init_2_0(raspitex_state);
-
   if (rc != 0)
     goto end;
 
@@ -163,34 +202,44 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
   GLCHK(
       glUniform1i(vcsm_square_oes_shader.uniform_locations[0], 0)); // tex unit
 
-  GLCHK(glGenFramebuffers(1, &fb_name));
-  GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, fb_name));
+  // GLCHK(glGenFramebuffers(1, &fb_name));
+  // GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, fb_name));
 
-  GLCHK(glGenTextures(1, &fb_tex_name));
-  GLCHK(glBindTexture(GL_TEXTURE_2D, fb_tex_name));
-  GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-  GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  // GLCHK(glGenTextures(1, &fb_tex_name));
+  // GLCHK(glBindTexture(GL_TEXTURE_2D, fb_tex_name));
+  // GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+  // GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
 
-  printf("Using VCSM\n");
-  vcsm_info.width = fb_width;
-  vcsm_info.height = fb_height;
-  eglFbImage = eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
-                                 EGL_IMAGE_BRCM_VCSM, &vcsm_info, NULL);
-  if (eglFbImage == EGL_NO_IMAGE_KHR || vcsm_info.vcsm_handle == 0) {
-    vcos_log_error("%s: Failed to create EGL VCSM image\n", VCOS_FUNCTION);
-    rc = -1;
+  // printf("Using VCSM\n");
+  // vcsm_info.width = fb_width;
+  // vcsm_info.height = fb_height;
+  // eglFbImage = eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
+  //                                EGL_IMAGE_BRCM_VCSM, &vcsm_info, NULL);
+  // if (eglFbImage == EGL_NO_IMAGE_KHR || vcsm_info.vcsm_handle == 0) {
+  //   vcos_log_error("%s: Failed to create EGL VCSM image\n", VCOS_FUNCTION);
+  //   rc = -1;
+  //   goto end;
+  // }
+
+  // GLCHK(glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, eglFbImage));
+
+  // GLCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+  //                              GL_TEXTURE_2D, fb_tex_name, 0));
+  // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+  //   vcos_log_error("GL_FRAMEBUFFER is not complete\n");
+  //   rc = -1;
+  //   goto end;
+  // }
+
+  printf("before\n");
+  rc = init_framebuffer(&framebuffers[0], raspitex_state);
+  if (rc != 0)
     goto end;
-  }
-
-  GLCHK(glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, eglFbImage));
-
-  GLCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, fb_tex_name, 0));
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-    vcos_log_error("GL_FRAMEBUFFER is not complete\n");
-    rc = -1;
+  rc = init_framebuffer(&framebuffers[1], raspitex_state);
+  if (rc != 0)
     goto end;
-  }
+  printf("after\n");
+
   GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   GLCHK(glGenBuffers(1, &quad_vbo));
   GLCHK(glBindBuffer(GL_ARRAY_BUFFER, quad_vbo));
@@ -208,65 +257,85 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
 
   vcos_log_trace("%s", VCOS_FUNCTION);
 
-  glClearColor(255, 0, 0, 255);
+  double start = get_wall_time();
+  glClearColor(255, 255, 255, 255);
 
-  GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, fb_name));
+  current_fb_idx = (current_fb_idx + 1) % 2;
+  GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, framebuffers[current_fb_idx].name));
   GLCHK(glViewport(0, 0, raspitex_state->width, raspitex_state->height));
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  double lo[3];
-  double up[3];
-  raspitex_state->get_thresholds(lo, up);
-
   // Fill the viewport with the camFill the viewport with the camera image
   GLCHK(glUseProgram(vcsm_square_oes_shader.program));
+
   GLCHK(glActiveTexture(GL_TEXTURE0));
   GLCHK(glBindTexture(GL_TEXTURE_EXTERNAL_OES, raspitex_state->texture));
+
   GLCHK(glBindBuffer(GL_ARRAY_BUFFER, quad_vbo));
   GLCHK(
       glEnableVertexAttribArray(vcsm_square_oes_shader.attribute_locations[0]));
   GLCHK(glVertexAttribPointer(vcsm_square_oes_shader.attribute_locations[0], 2,
                               GL_FLOAT, GL_FALSE, 0, 0));
+
+  double lo[3], up[3];
+  raspitex_state->get_thresholds(lo, up);
   GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[1], lo[0], lo[1], lo[2])); // lower thresh
   GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[2], up[0], up[1], up[2])); // lower thresh
-  GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
 
+  GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
+  double end = get_wall_time();
+  printf("drawing and setup: %f\n", end - start);
+
+  start = get_wall_time();
   GLCHK(glFinish());
+  end = get_wall_time();
+  printf("glFinish: %f\n", end - start);
 
   int bound = fb_width * (raspitex_state->height - 1) + raspitex_state->width;
 
   // We keep an intermediate buffer because memcpy can't deal with overlapping
   // copies (memmove does, but it slower)
-  static unsigned char *inter_threshold_buf, *inter_color_buf;
-  if (!inter_color_buf) {
-    inter_threshold_buf = malloc(bound);
-    inter_color_buf = malloc(bound * 3);
-  }
+  // static unsigned char *inter_buf, *inter_threshold_buf, *inter_color_buf;
+  // if (!inter_color_buf) {
+  //   inter_threshold_buf = malloc(bound);
+  //   inter_color_buf = malloc(bound * 3);
+  //   inter_buf = malloc(bound * 4);
+  // }
+
+  start = get_wall_time();
 
   // Make the buffer CPU addressable with host cache enabled
   vcsm_buffer = (unsigned char *)vcsm_lock_cache(
-      vcsm_info.vcsm_handle, VCSM_CACHE_TYPE_HOST, &cache_type);
+      framebuffers[current_fb_idx].vcsm_info.vcsm_handle, VCSM_CACHE_TYPE_HOST, &cache_type);
   if (!vcsm_buffer) {
     vcos_log_error("Failed to lock VCSM buffer for handle %d\n",
-                   vcsm_info.vcsm_handle);
+                  framebuffers[current_fb_idx].vcsm_info.vcsm_handle);
     return -1;
   }
-  vcos_log_trace("Locked vcsm handle %d at %p\n", vcsm_info.vcsm_handle,
-                 vcsm_buffer);
+  // printf("vcsm_buf: %u\n", vcsm_buffer[3]);
 
   // IMPORTANT! bound must be calculated outside the for statement or GCC won't
   // vectorize the loop
-  for (int i = 0; i < bound; i++) {
-    inter_threshold_buf[i] = vcsm_buffer[i * 4];
-  }
+  // for (int i = 0; i < bound; i++) {
+  //   inter_color_buf[i * 3] = vcsm_buffer[i * 4];
+  //   inter_color_buf[i * 3 + 1] = vcsm_buffer[i * 4 + 1];
+  //   inter_color_buf[i * 3 + 2] = vcsm_buffer[i * 4 + 2];
+  //   inter_threshold_buf[i] = vcsm_buffer[i * 4 + 3];
+  // }
 
   // Release the locked texture memory to flush the CPU cache and allow GPU
   // to read it
-  vcsm_unlock_ptr(vcsm_buffer);
+  // vcsm_unlock_ptr(vcsm_buffer);
+  end = get_wall_time();
+  printf("lock: %f\n", end - start);
 
-  raspitex_state->enqueue_threshold_mat(inter_threshold_buf,
-                                        raspitex_state->width,
-                                        raspitex_state->height, fb_width);
+  start = get_wall_time();
+  // raspitex_state->enqueue_threshold_mat(inter_threshold_buf,
+  //                                       raspitex_state->width,
+  //                                       raspitex_state->height, fb_width);
+  raspitex_state->enqueue_mat(vcsm_buffer, raspitex_state->width, raspitex_state->height, fb_width, fb_height);
+  end = get_wall_time();
+  printf("enqueue: %f\n", end - start);
 
   GLCHK(glUseProgram(0));
 

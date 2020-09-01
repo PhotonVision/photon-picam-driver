@@ -85,6 +85,9 @@ typedef struct RASPITEXUTIL_SHADER_PROGRAM_T {
 #define GLCHK(X) X
 #endif /* CHECK_GL_ERRORS */
 
+/* Benchmarking */
+double get_wall_time(void);
+
 /* Default GL scene ops functions */
 int raspitexutil_create_native_window(RASPITEX_STATE *raspitex_state);
 int raspitexutil_gl_init_1_0(RASPITEX_STATE *raspitex_state);
