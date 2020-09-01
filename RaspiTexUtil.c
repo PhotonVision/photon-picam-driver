@@ -31,6 +31,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <GLES2/gl2.h>
 #include <bcm_host.h>
 
+#include <time.h>
+#include <sys/time.h>
+
 VCOS_LOG_CAT_T raspitex_log_category;
 
 /**
@@ -39,6 +42,14 @@ VCOS_LOG_CAT_T raspitex_log_category;
  * Provides default implementations for the raspitex_scene_ops functions
  * and general utility functions.
  */
+
+double get_wall_time(void) {
+    struct timeval time;
+    if (gettimeofday(&time,NULL)) {
+        return 0;
+    }
+    return (double)time.tv_sec * 1000 + (double)time.tv_usec * 0.001;
+}
 
 /**
  * Deletes textures and EGL surfaces and context.

@@ -1,8 +1,10 @@
 
 #include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 #include <iostream>
 #include <chrono>
+#include <thread>
 
 #include "PicamJNI.hpp"
 
@@ -23,17 +25,20 @@ void print() {
   using namespace std::chrono_literals;
 
   auto start_time = std::chrono::steady_clock::now();
-  while (std::chrono::steady_clock::now() - start_time < 30s) {
+  auto last_time = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - start_time < 3s) {
     cv::Mat *mat = reinterpret_cast<cv::Mat *>(
         Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr));
+    std::cout << "dt: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last_time).count() << std::endl;
+    last_time = std::chrono::steady_clock::now();
+
     std::cout << static_cast<unsigned int>(mat->at<unsigned char>(0, 0))
-              << " "
-              << static_cast<unsigned int>(mat->at<unsigned char>(1, 0))
-              << " "
-              << static_cast<unsigned int>(mat->at<unsigned char>(2, 0))
               << std::endl;
+    // cv::imwrite("out.png", *mat);
     mat->release();
   }
+  cv::imwrite("out.png", *reinterpret_cast<cv::Mat *>(
+        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr)));
 }
 
 // This is just a little wrapper for manual testing that calls the functions
