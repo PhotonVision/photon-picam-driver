@@ -3,7 +3,8 @@ OBJS=PicamJNI.o RaspiTex.o RaspiTexUtil.o RaspiCamControl.o RaspiHelpers.o vcsm_
 SRC=TesterMain.cpp PicamJNI.cpp RaspiTex.c RaspiCamControl.c RaspiHelpers.c RaspiTexUtil.c vcsm_square.c
 
 # We need these so that GCC vectorizes the loop that copies out every fourth pixel from VCSM
-CFLAGS+=-O3 -mfpu=neon -ftree-vectorize -fPIC -g
+CFLAGS+=-O3 -mfpu=neon -ftree-vectorize -fPIC -g -ggdb
+CXXFLAGS+=-std=c++17
 
 # Looots of dependencies
 LDFLAGS+=-lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvcsm -lmmal -lmmal_core -lmmal_util -lm -ldl -lpthread -lstdc++
@@ -33,12 +34,12 @@ all: libpicam.so $(LIB)
 
 %.o: %.cpp
 	@rm -f $@ 
-	$(CXX) $(CFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
+	$(CXX) $(CFLAGS) $(CXXFLAGS) $(INCLUDES) -g -c $< -o $@ -Wno-deprecated-declarations
 
 tester: ${OBJS}
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ ${OBJS} $(LDFLAGS)
 
 libpicam.so: ${OBJS}
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 
+	$(CC) $(CFLAGS) $(CXXFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 
 
 $(info ${OBJS})

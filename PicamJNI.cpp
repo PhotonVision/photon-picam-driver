@@ -22,6 +22,7 @@
 #include <iostream>
 #include <future>
 #include <mutex>
+#include <shared_mutex>
 
 #include "PicamJNI.hpp" // Generated
 
@@ -66,14 +67,6 @@ constexpr int video_framerate = 120; // This is really a max framerate
 RASPITEX_STATE tex_state{};
 MMAL_STATE mmal_state{};
 
-// std::mutex color_mutex;
-// std::condition_variable color_cv;
-// cv::Mat *color_mat = nullptr;
-
-// std::mutex threshold_mutex;
-// std::condition_variable threshold_cv;
-// cv::Mat *threshold_mat = nullptr;
-
 std::mutex mat_available_mutex;
 std::condition_variable mat_available;
 std::thread mat_thread;
@@ -84,11 +77,11 @@ cv::Mat threshold_mat;
 unsigned char *inter_color_buffer;
 unsigned char *inter_threshold_buffer;
 
-std::mutex vcsm_mutex;
+std::array<std::shared_mutex, NUM_FRAMEBUFFERS> vcsm_mutexes;
 unsigned char *vcsm_buffer;
 
 std::mutex hsv_uniforms_mutex;
-std::array<double, 6> hsv_thresholds = {0, 0, 0, 1, 1, 0.8};
+std::array<double, 6> hsv_thresholds = {0, 0, 0, 1, 1, 0.5};
 
 namespace {
 void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
@@ -185,161 +178,55 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   }
 }
 
-// void enqueue_color_mat(unsigned char *uncropped_rgb, int cropped_width,
-//                        int cropped_height) {
-//   // TODO
-// }
+void enqueue_mat(unsigned char *vcsm_buf, int fbo_idx, int width, int height, int fb_width, int fb_height) {
+  std::shared_lock<std::shared_mutex> lk(vcsm_mutexes[fbo_idx]);
 
-// void enqueue_threshold_mat(unsigned char *uncropped_a, int cropped_width,
-//                            int cropped_height, int uncropped_width) {
-//   {
-//     std::lock_guard<std::mutex> lk(threshold_mutex);
-
-//     if (threshold_mat) {
-//       delete threshold_mat;
-//     }
-
-//     // This heap-allocated map is passed to Java code where it is eventually
-//     // destroyed
-//     threshold_mat = new cv::Mat(cropped_height, cropped_width, CV_8UC1);
-
-//     unsigned char *outBuf = threshold_mat->data;
-//     for (int y = 0; y < cropped_height; y++) {
-//       std::memcpy(outBuf + y * cropped_width, uncropped_a + y * uncropped_width,
-//                   cropped_width);
-//     }
-//   }
-
-//   threshold_cv.notify_all();
-// }
-
-void enqueue_mat(unsigned char *vcsm_buf, int width, int height, int fb_width, int fb_height) {
   if (!inter_color_buffer) {
     // Color buffer is RGB, so 3 bytes per pixel
     inter_color_buffer = new unsigned char[fb_width * fb_height * 3];
     inter_threshold_buffer = new unsigned char[fb_width * fb_height];
   }
 
-  // {
-  // std::lock_guard<std::mutex> lk(future_mutex);
-
-  // mat_future = std::async(std::launch::async, [=] {
-  //   {
-  //     std::lock_guard<std::mutex> lk(vcsm_mutex);
-
-  //     int bound = fb_width * (height - 1) + width;
-  //     for (int i = 0; i < bound; i++) {
-  //       inter_color_buffer[i * 3] = vcsm_buffer[i * 4];
-  //       inter_color_buffer[i * 3 + 1] = vcsm_buffer[i * 4 + 1];
-  //       inter_color_buffer[i * 3 + 2] = vcsm_buffer[i * 4 + 2];
-  //       inter_threshold_buffer[i] = vcsm_buffer[i * 4 + 3];
-  //     }
-  //     vcsm_unlock_ptr(vcsm_buffer);
-  //   }
-
-  //   cv::Mat out = cv::Mat(height, width, CV_8UC1);
-  //   unsigned char *out_buf = out.data;
-  //   for (int y = 0; y < height; y++) {
-  //     std::memcpy(out_buf + y * width, inter_threshold_buffer + y * fb_width,
-  //               width);
-  //   }
-
-  //   return out;
-  // });
-  // }
-  // future_is_valid.notify_all();
-
   std::thread t([=] {
-    int bound = fb_width * (height - 1) + width;
-    for (int i = 0; i < bound; i++) {
-      inter_color_buffer[i * 3] = vcsm_buf[i * 4];
-      inter_color_buffer[i * 3 + 1] = vcsm_buf[i * 4 + 1];
-      inter_color_buffer[i * 3 + 2] = vcsm_buf[i * 4 + 2];
-      inter_threshold_buffer[i] = vcsm_buf[i * 4 + 3];
+    {
+      std::shared_lock<std::shared_mutex> lk(vcsm_mutexes[fbo_idx]);
+      int bound = fb_width * (height - 1) + width;
+      for (int i = 0; i < bound; i++) {
+        // inter_color_buffer[i * 3] = vcsm_buf[i * 4];
+        // inter_color_buffer[i * 3 + 1] = vcsm_buf[i * 4 + 1];
+        // inter_color_buffer[i * 3 + 2] = vcsm_buf[i * 4 + 2];
+        inter_threshold_buffer[i] = vcsm_buf[i * 4 + 3];
+      }
+      vcsm_unlock_ptr(vcsm_buf);
     }
-    vcsm_unlock_ptr(vcsm_buf);
-
-    printf("here\n");
 
     {
-      std::lock_guard<std::mutex> lk(mat_available_mutex);
+      std::scoped_lock<std::mutex> lk(mat_available_mutex);
 
-      color_mat = cv::Mat(height, width, CV_8UC3);
+      // color_mat = cv::Mat(height, width, CV_8UC3);
       threshold_mat = cv::Mat(height, width, CV_8UC1);
-      unsigned char *color_out_buf = color_mat.data;
+      // unsigned char *color_out_buf = color_mat.data;
       unsigned char *threshold_out_buf = threshold_mat.data;
       for (int y = 0; y < height; y++) {
-        std::memcpy(color_out_buf + y * width, inter_color_buffer + y * fb_width * 3,
-                  width * 3);
+        // std::memcpy(color_out_buf + y * width, inter_color_buffer + y * fb_width * 3,
+        //           width * 3);
         std::memcpy(threshold_out_buf + y * width, inter_threshold_buffer + y * fb_width,
                   width);
       }
     }
 
-    // bool desired = false;
-    // if (!new_frame_available.compare_exchange_strong(desired, true)) return;
-
-    printf("notifying\n");
     mat_available.notify_all();
   });
   t.detach();
+}
 
-  // {
-  //   std::lock_guard<std::mutex> lk(vcsm_mutex);
-  //   new_frame_available = true;
-  //   vcsm_buffer = vcsm_buf;
-  // }
-
-  // if (!mat_thread.joinable()) {
-  //   mat_thread = std::thread([=] {
-  //     while (true) {
-  //       bool desired;
-
-  //       {
-  //         std::lock_guard<std::mutex> lk_vcsm(vcsm_mutex);
-
-  //         new_frame_available = false;
-
-  //         int bound = fb_width * (height - 1) + width;
-  //         for (int i = 0; i < bound && !new_frame_available; i++) {
-  //           inter_color_buffer[i * 3] = vcsm_buffer[i * 4];
-  //           inter_color_buffer[i * 3 + 1] = vcsm_buffer[i * 4 + 1];
-  //           inter_color_buffer[i * 3 + 2] = vcsm_buffer[i * 4 + 2];
-  //           inter_threshold_buffer[i] = vcsm_buffer[i * 4 + 3];
-  //         }
-  //         vcsm_unlock_ptr(vcsm_buffer);
-  //       }
-
-  //       desired = true;
-  //       new_frame_available.compare_exchange_strong(desired, false);
-  //       if (desired) continue;
-
-  //       printf("here\n");
-
-  //       {
-  //         std::lock_guard<std::mutex> lk(mat_available_mutex);
-
-  //         threshold_mat = cv::Mat(height, width, CV_8UC1);
-  //         unsigned char *out_buf = threshold_mat.data;
-  //         for (int y = 0; y < height && !new_frame_available; y++) {
-  //           std::memcpy(out_buf + y * width, inter_threshold_buffer + y * fb_width,
-  //                     width);
-  //         }
-  //       }
-
-  //       desired = true;
-  //       new_frame_available.compare_exchange_strong(desired, false);
-  //       if (desired) continue;
-
-  //       printf("notifying\n");
-  //       mat_available.notify_all();
-  //     }
-  //   });
-  // }
+void wait_for_vcsm_read_done(int fbo_idx) {
+  // Acquire exclusive lock, which makes us block until the shared lock is unlocked
+  std::scoped_lock<std::shared_mutex> lk(vcsm_mutexes[fbo_idx]);
 }
 
 void get_thresholds(double lower[3], double upper[3]) {
-  std::lock_guard<std::mutex> lk(hsv_uniforms_mutex);
+  std::scoped_lock<std::mutex> lk(hsv_uniforms_mutex);
   std::copy(hsv_thresholds.begin(), hsv_thresholds.begin() + 3, lower);
   std::copy(hsv_thresholds.begin() + 3, hsv_thresholds.end(), upper);
 }
@@ -360,6 +247,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
     tex_state.width = static_cast<unsigned int>(width);
     tex_state.height = static_cast<unsigned int>(height);
     tex_state.enqueue_mat = enqueue_mat;
+    tex_state.wait_for_vcsm_read_done = wait_for_vcsm_read_done;
     tex_state.get_thresholds = get_thresholds;
     ret = raspitex_init(&tex_state);
     if (ret != 0) {
@@ -423,7 +311,7 @@ Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
 
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
     JNIEnv *, jclass, jdouble h_l, jdouble s_l, jdouble v_l, jdouble h_u, jdouble s_u, jdouble v_u) {
-  std::lock_guard<std::mutex> lk(hsv_uniforms_mutex);
+  std::scoped_lock<std::mutex> lk(hsv_uniforms_mutex);
   // You _can_ pass a jdouble[], but it's slow and unpleasant
   hsv_thresholds[0] = h_l;
   hsv_thresholds[1] = s_l;
@@ -456,14 +344,6 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
 
 JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(JNIEnv *,
                                                                        jclass) {
-  // std::shared_future<cv::Mat> future;
-  // {
-  //   std::unique_lock<std::mutex> lk(future_mutex);
-  //   future_is_valid.wait(lk, []{return mat_future.valid();});
-
-  //   future = mat_future.share();
-  // }
-
   {
     std::unique_lock<std::mutex> lk(mat_available_mutex);
     mat_available.wait(lk);
