@@ -37,8 +37,13 @@ void print() {
     // cv::imwrite("out.png", *mat);
     mat->release();
   }
-  cv::imwrite("out.png", *reinterpret_cast<cv::Mat *>(
-        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr)));
+  std::cout << "========== writing ========" << std::endl;
+  cv::Mat *mat = reinterpret_cast<cv::Mat *>(
+        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr));
+  bool success = cv::imwrite("out.png", *mat);
+  if (!success) std::cerr << "whoops" << std::endl;  
+  std::cout << "releasing" << std::endl;
+  mat->release();
 }
 
 // This is just a little wrapper for manual testing that calls the functions
@@ -54,7 +59,7 @@ int main(int argc, char *argv[]) {
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width,
                                                     height, 60);
   print();
-  Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
+  // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
   // Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width / 2,
   //                                                   height / 2, 60);

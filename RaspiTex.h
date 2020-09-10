@@ -40,6 +40,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RASPITEX_VERSION_MAJOR 1
 #define RASPITEX_VERSION_MINOR 0
 
+#define NUM_FRAMEBUFFERS 3
+
 typedef enum {
   RASPITEX_SCENE_VCSM_SQUARE,
 
@@ -111,8 +113,8 @@ typedef struct RASPITEX_CAPTURE {
 } RASPITEX_CAPTURE;
 
 // typedef void (*enqueue_mat)(unsigned char *, int, int, int);
-typedef void (*wait_for_vcsm_available)(void);
-typedef void (*enqueue_unpicked_mat)(unsigned char *, int, int, int, int);
+typedef void (*wait_for_vcsm_available)(int);
+typedef void (*enqueue_unpicked_mat)(unsigned char *, int, int, int, int, int);
 typedef void (*get_hsv_threshold)(double[3], double[3]); // Array always has a size of six
 
 /**

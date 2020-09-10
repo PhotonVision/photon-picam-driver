@@ -127,7 +127,7 @@ typedef struct {
 } FRAMEBUFFER;
 
 int current_fb_idx = 0;
-FRAMEBUFFER framebuffers[2] = {};
+FRAMEBUFFER framebuffers[NUM_FRAMEBUFFERS] = {};
 
 // VCSM buffer dimensions must be a power of two. Use glViewPort to draw NPOT
 // rectangles within the VCSM buffer.
@@ -186,7 +186,6 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
   printf("Using VCSM\n");
 
   int rc = vcsm_init();
-  vcos_log_trace("%s: vcsm_init %d", VCOS_FUNCTION, rc);
 
   fb_width = next_power_of_two(raspitex_state->width);
   fb_height = next_power_of_two(raspitex_state->height);
@@ -202,43 +201,11 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
   GLCHK(
       glUniform1i(vcsm_square_oes_shader.uniform_locations[0], 0)); // tex unit
 
-  // GLCHK(glGenFramebuffers(1, &fb_name));
-  // GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, fb_name));
-
-  // GLCHK(glGenTextures(1, &fb_tex_name));
-  // GLCHK(glBindTexture(GL_TEXTURE_2D, fb_tex_name));
-  // GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-  // GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-
-  // printf("Using VCSM\n");
-  // vcsm_info.width = fb_width;
-  // vcsm_info.height = fb_height;
-  // eglFbImage = eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
-  //                                EGL_IMAGE_BRCM_VCSM, &vcsm_info, NULL);
-  // if (eglFbImage == EGL_NO_IMAGE_KHR || vcsm_info.vcsm_handle == 0) {
-  //   vcos_log_error("%s: Failed to create EGL VCSM image\n", VCOS_FUNCTION);
-  //   rc = -1;
-  //   goto end;
-  // }
-
-  // GLCHK(glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, eglFbImage));
-
-  // GLCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-  //                              GL_TEXTURE_2D, fb_tex_name, 0));
-  // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-  //   vcos_log_error("GL_FRAMEBUFFER is not complete\n");
-  //   rc = -1;
-  //   goto end;
-  // }
-
-  printf("before\n");
-  rc = init_framebuffer(&framebuffers[0], raspitex_state);
-  if (rc != 0)
-    goto end;
-  rc = init_framebuffer(&framebuffers[1], raspitex_state);
-  if (rc != 0)
-    goto end;
-  printf("after\n");
+  for (int i = 0; i < NUM_FRAMEBUFFERS; i++) {
+    rc = init_framebuffer(&framebuffers[i], raspitex_state);
+    if (rc != 0)
+      goto end;
+  }
 
   GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
   GLCHK(glGenBuffers(1, &quad_vbo));
@@ -255,12 +222,11 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
   unsigned char *vcsm_buffer = NULL;
   VCSM_CACHE_TYPE_T cache_type;
 
-  vcos_log_trace("%s", VCOS_FUNCTION);
+  current_fb_idx = (current_fb_idx + 1) % NUM_FRAMEBUFFERS;
+  raspitex_state->wait_for_vcsm_read_done(current_fb_idx);
 
-  double start = get_wall_time();
   glClearColor(255, 255, 255, 255);
 
-  current_fb_idx = (current_fb_idx + 1) % 2;
   GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, framebuffers[current_fb_idx].name));
   GLCHK(glViewport(0, 0, raspitex_state->width, raspitex_state->height));
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -283,26 +249,8 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
   GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[2], up[0], up[1], up[2])); // lower thresh
 
   GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
-  double end = get_wall_time();
-  printf("drawing and setup: %f\n", end - start);
 
-  start = get_wall_time();
   GLCHK(glFinish());
-  end = get_wall_time();
-  printf("glFinish: %f\n", end - start);
-
-  int bound = fb_width * (raspitex_state->height - 1) + raspitex_state->width;
-
-  // We keep an intermediate buffer because memcpy can't deal with overlapping
-  // copies (memmove does, but it slower)
-  // static unsigned char *inter_buf, *inter_threshold_buf, *inter_color_buf;
-  // if (!inter_color_buf) {
-  //   inter_threshold_buf = malloc(bound);
-  //   inter_color_buf = malloc(bound * 3);
-  //   inter_buf = malloc(bound * 4);
-  // }
-
-  start = get_wall_time();
 
   // Make the buffer CPU addressable with host cache enabled
   vcsm_buffer = (unsigned char *)vcsm_lock_cache(
@@ -312,30 +260,8 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
                   framebuffers[current_fb_idx].vcsm_info.vcsm_handle);
     return -1;
   }
-  // printf("vcsm_buf: %u\n", vcsm_buffer[3]);
 
-  // IMPORTANT! bound must be calculated outside the for statement or GCC won't
-  // vectorize the loop
-  // for (int i = 0; i < bound; i++) {
-  //   inter_color_buf[i * 3] = vcsm_buffer[i * 4];
-  //   inter_color_buf[i * 3 + 1] = vcsm_buffer[i * 4 + 1];
-  //   inter_color_buf[i * 3 + 2] = vcsm_buffer[i * 4 + 2];
-  //   inter_threshold_buf[i] = vcsm_buffer[i * 4 + 3];
-  // }
-
-  // Release the locked texture memory to flush the CPU cache and allow GPU
-  // to read it
-  // vcsm_unlock_ptr(vcsm_buffer);
-  end = get_wall_time();
-  printf("lock: %f\n", end - start);
-
-  start = get_wall_time();
-  // raspitex_state->enqueue_threshold_mat(inter_threshold_buf,
-  //                                       raspitex_state->width,
-  //                                       raspitex_state->height, fb_width);
-  raspitex_state->enqueue_mat(vcsm_buffer, raspitex_state->width, raspitex_state->height, fb_width, fb_height);
-  end = get_wall_time();
-  printf("enqueue: %f\n", end - start);
+  raspitex_state->enqueue_mat(vcsm_buffer, current_fb_idx, raspitex_state->width, raspitex_state->height, fb_width, fb_height);
 
   GLCHK(glUseProgram(0));
 
