@@ -26,14 +26,14 @@ void print() {
 
   auto start_time = std::chrono::steady_clock::now();
   auto last_time = std::chrono::steady_clock::now();
-  while (std::chrono::steady_clock::now() - start_time < 3s) {
+  while (std::chrono::steady_clock::now() - start_time < 1h) {
     cv::Mat *mat = reinterpret_cast<cv::Mat *>(
         Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr));
-    std::cout << "dt: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last_time).count() << std::endl;
+    // std::cout << "dt: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last_time).count() << std::endl;
     last_time = std::chrono::steady_clock::now();
 
-    std::cout << static_cast<unsigned int>(mat->at<unsigned char>(0, 0))
-              << std::endl;
+    // std::cout << static_cast<unsigned int>(mat->at<unsigned char>(0, 0))
+    //           << std::endl;
     // cv::imwrite("out.png", *mat);
     mat->release();
   }
@@ -50,14 +50,15 @@ void print() {
 // that would ususally get called from Java. It's useful because Gradle startup
 // on the Pi 3 takes *forever*.
 int main(int argc, char *argv[]) {
-  int width = 1920, height = 1080;
-  if (argc >= 3) {
+  int width = 320, height = 240, fps = 120;
+  if (argc >= 4) {
     width = atoi(argv[1]);
     height = atoi(argv[2]);
+    fps = atoi(argv[3]);
   }
 
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width,
-                                                    height, 60);
+                                                    height, fps);
   print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 

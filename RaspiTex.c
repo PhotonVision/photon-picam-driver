@@ -223,6 +223,11 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
     // if (rc != 0)
     //   goto end;
 
+    uint64_t val;
+    mmal_port_parameter_get_uint64(state->preview_port, MMAL_PARAMETER_SYSTEM_TIME, &val);
+
+    printf("%llu ms latency\n", val - state->preview_buf->pts);
+
     rc = state->ops.redraw(state);
     if (rc != 0)
       goto end;
