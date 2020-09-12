@@ -62,8 +62,6 @@ struct MMAL_STATE {
 #define MMAL_CAMERA_VIDEO_PORT 1
 #define MMAL_CAMERA_STILLS_PORT 2
 
-constexpr int video_framerate = 120; // This is really a max framerate
-
 RASPITEX_STATE tex_state{};
 MMAL_STATE mmal_state{};
 
@@ -85,7 +83,7 @@ std::array<double, 6> hsv_thresholds = {0, 0, 0, 1, 1, 0.5};
 
 namespace {
 void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
-                unsigned int width, unsigned int height) {
+                unsigned int width, unsigned int height, unsigned int fps) {
   int status;
 
   bcm_host_init();
@@ -134,18 +132,11 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
         .one_shot_stills = 1,
         .max_preview_video_w = width,
         .max_preview_video_h = height,
-        .num_preview_video_frames = 3 + vcos_max(0, (video_framerate-30)/10),
+        .num_preview_video_frames = width * height >= 1920 * 1080 ? 3 : 3 + vcos_max(0, (fps-30)/10),
         .stills_capture_circular_buffer_height = 0,
         .fast_preview_resume = 0,
-        .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RESET_STC};
+        .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC};
     mmal_port_parameter_set(state->camera->control, &cam_config.hdr);
-  }
-
-  {
-      MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
-         {15, 1}, {120, 1}
-      };
-      mmal_port_parameter_set(state->camera_preview_port, &fps_range.hdr);
   }
 
   status = raspicamcontrol_set_all_parameters(state->camera, cam_params);
@@ -164,7 +155,7 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   state->format->es->video.crop.width = VCOS_ALIGN_UP(width, 32);
   state->format->es->video.crop.height = VCOS_ALIGN_UP(height, 16);
 
-  state->format->es->video.frame_rate.num = video_framerate;
+  state->format->es->video.frame_rate.num = fps;
   state->format->es->video.frame_rate.den = 1;
 
   status = mmal_port_format_commit(state->camera_preview_port);
@@ -259,7 +250,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
     raspicamcontrol_set_defaults(&cam_params);
 
     setup_mmal(&mmal_state, &cam_params, tex_state.width,
-               tex_state.height); // Throws
+               tex_state.height, fps); // Throws
 
     ret = raspitex_configure_preview_port(&tex_state,
                                           mmal_state.camera_preview_port);
