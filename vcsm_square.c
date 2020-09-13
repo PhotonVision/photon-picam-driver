@@ -54,10 +54,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vcsm_square.h"
 #include "RaspiTex.h"
 #include "RaspiTexUtil.h"
-#include <interface/vcsm/user-vcsm.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <interface/vcsm/user-vcsm.h>
 
 /* Draw a scaled quad showing the entire texture with the
  * origin defined as an attribute */
@@ -72,41 +72,41 @@ static RASPITEXUTIL_SHADER_PROGRAM_T vcsm_square_oes_shader = {
                      "   gl_Position = vec4(vertex, 0.0, 1.0);"
                      "}",
 
-    .fragment_source = "#version 100\n"
-                       "#extension GL_OES_EGL_image_external : require\n"
-                       ""
-                       "precision lowp float;"
-                       "precision lowp int;"
-                       ""
-                       "varying vec2 texcoord;"
-                       ""
-                       "uniform vec3 lowerThresh;"
-                       "uniform vec3 upperThresh;"
-                       "uniform samplerExternalOES tex;"
-                       ""
-                       "vec3 rgb2hsv(const vec3 p) {"
-                       "  const vec4 H = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
-                       // Using ternary seems to be faster than using mix and step
-                       "  vec4 o = p.g < p.b ? vec4(p.bg, H.wz) : vec4(p.gb, H.xy);"
-                       "  vec4 t = p.r < o.x ? vec4(o.xyw, p.r) : vec4(p.r, o.yzx);"
-                       ""
-                       "  float O = t.x - min(t.w, t.y);"
-                       "  const float n = 1.0e-10;"
-                       "  return vec3(abs(t.z + (t.w - t.y) / (6.0 * O + n)), O / (t.x + n), t.x);"
-                       "}"
-                       ""
-                       "bool inRange(vec3 hsv) {"
-                       "  bvec3 botBool = greaterThanEqual(hsv, lowerThresh);"
-                       "  bvec3 topBool = lessThanEqual(hsv, upperThresh);"
-                       "  return all(botBool) && all(topBool);"
-                       "}"
-                       ""
-                       "void main(void) {"
-                       "  vec3 col = texture2D(tex, texcoord).rgb;"
-                       // TODO: put color into the RGB elements of the vec4
-                       //  "  gl_FragColor = vec4(col.r, col.g, int(inRange(rgb2hsv(col))), (col.r + col.g + col.b) / 3.0);"
-                       "  gl_FragColor = vec4(col, int(inRange(rgb2hsv(col))));"
-                       "}",
+    .fragment_source =
+        "#version 100\n"
+        "#extension GL_OES_EGL_image_external : require\n"
+        ""
+        "precision lowp float;"
+        "precision lowp int;"
+        ""
+        "varying vec2 texcoord;"
+        ""
+        "uniform vec3 lowerThresh;"
+        "uniform vec3 upperThresh;"
+        "uniform samplerExternalOES tex;"
+        ""
+        "vec3 rgb2hsv(const vec3 p) {"
+        "  const vec4 H = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
+        // Using ternary seems to be faster than using mix and step
+        "  vec4 o = p.g < p.b ? vec4(p.bg, H.wz) : vec4(p.gb, H.xy);"
+        "  vec4 t = p.r < o.x ? vec4(o.xyw, p.r) : vec4(p.r, o.yzx);"
+        ""
+        "  float O = t.x - min(t.w, t.y);"
+        "  const float n = 1.0e-10;"
+        "  return vec3(abs(t.z + (t.w - t.y) / (6.0 * O + n)), O / (t.x + n), "
+        "t.x);"
+        "}"
+        ""
+        "bool inRange(vec3 hsv) {"
+        "  bvec3 botBool = greaterThanEqual(hsv, lowerThresh);"
+        "  bvec3 topBool = lessThanEqual(hsv, upperThresh);"
+        "  return all(botBool) && all(topBool);"
+        "}"
+        ""
+        "void main(void) {"
+        "  vec3 col = texture2D(tex, texcoord).rgb;"
+        "  gl_FragColor = vec4(col, int(inRange(rgb2hsv(col))));"
+        "}",
     .uniform_names = {"tex", "lowerThresh", "upperThresh"},
     .attribute_names = {"vertex"},
 };
@@ -162,8 +162,9 @@ static int init_framebuffer(FRAMEBUFFER *fb, RASPITEX_STATE *raspitex_state) {
 
   fb->vcsm_info.width = fb_width;
   fb->vcsm_info.height = fb_height;
-  fb->egl_fb_image = eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
-                                 EGL_IMAGE_BRCM_VCSM, &fb->vcsm_info, NULL);
+  fb->egl_fb_image =
+      eglCreateImageKHR(raspitex_state->display, EGL_NO_CONTEXT,
+                        EGL_IMAGE_BRCM_VCSM, &fb->vcsm_info, NULL);
   if (fb->egl_fb_image == EGL_NO_IMAGE_KHR || fb->vcsm_info.vcsm_handle == 0) {
     vcos_log_error("%s: Failed to create EGL VCSM image\n", VCOS_FUNCTION);
     return -1;
@@ -245,8 +246,10 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
 
   double lo[3], up[3];
   raspitex_state->get_thresholds(lo, up);
-  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[1], lo[0], lo[1], lo[2])); // lower thresh
-  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[2], up[0], up[1], up[2])); // lower thresh
+  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[1], lo[0], lo[1],
+                    lo[2])); // lower thresh
+  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[2], up[0], up[1],
+                    up[2])); // lower thresh
 
   GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
 
@@ -254,14 +257,17 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
 
   // Make the buffer CPU addressable with host cache enabled
   vcsm_buffer = (unsigned char *)vcsm_lock_cache(
-      framebuffers[current_fb_idx].vcsm_info.vcsm_handle, VCSM_CACHE_TYPE_HOST, &cache_type);
+      framebuffers[current_fb_idx].vcsm_info.vcsm_handle, VCSM_CACHE_TYPE_HOST,
+      &cache_type);
   if (!vcsm_buffer) {
     vcos_log_error("Failed to lock VCSM buffer for handle %d\n",
-                  framebuffers[current_fb_idx].vcsm_info.vcsm_handle);
+                   framebuffers[current_fb_idx].vcsm_info.vcsm_handle);
     return -1;
   }
 
-  raspitex_state->enqueue_mat(vcsm_buffer, current_fb_idx, raspitex_state->width, raspitex_state->height, fb_width, fb_height);
+  raspitex_state->enqueue_mat(vcsm_buffer, current_fb_idx,
+                              raspitex_state->width, raspitex_state->height,
+                              fb_width, fb_height);
 
   GLCHK(glUseProgram(0));
 

@@ -43,10 +43,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * @param port  Pointer the port
  *
  */
-void check_disable_port(MMAL_PORT_T *port)
-{
-   if (port && port->is_enabled)
-      mmal_port_disable(port);
+void check_disable_port(MMAL_PORT_T *port) {
+  if (port && port->is_enabled)
+    mmal_port_disable(port);
 }
 
 /**

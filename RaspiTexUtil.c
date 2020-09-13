@@ -31,8 +31,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <GLES2/gl2.h>
 #include <bcm_host.h>
 
-#include <time.h>
 #include <sys/time.h>
+#include <time.h>
 
 VCOS_LOG_CAT_T raspitex_log_category;
 
@@ -44,11 +44,11 @@ VCOS_LOG_CAT_T raspitex_log_category;
  */
 
 double get_wall_time(void) {
-    struct timeval time;
-    if (gettimeofday(&time,NULL)) {
-        return 0;
-    }
-    return (double)time.tv_sec * 1000 + (double)time.tv_usec * 0.001;
+  struct timeval time;
+  if (gettimeofday(&time, NULL)) {
+    return 0;
+  }
+  return (double)time.tv_sec * 1000 + (double)time.tv_usec * 0.001;
 }
 
 /**
