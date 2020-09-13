@@ -156,7 +156,7 @@ typedef struct raspicam_camera_parameters_s {
   float awb_gains_r;      /// AWB red gain
   float awb_gains_b;      /// AWB blue gain
   MMAL_PARAMETER_DRC_STRENGTH_T
-      drc_level;          // Strength of Dynamic Range compression to apply
+  drc_level;              // Strength of Dynamic Range compression to apply
   MMAL_BOOL_T stats_pass; /// Stills capture statistics pass on/off
   int enable_annotate; /// Flag to enable the annotate, 0 = disabled, otherwise
                        /// a bitmask of what needs to be displayed

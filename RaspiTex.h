@@ -115,7 +115,8 @@ typedef struct RASPITEX_CAPTURE {
 // typedef void (*enqueue_mat)(unsigned char *, int, int, int);
 typedef void (*wait_for_vcsm_available)(int);
 typedef void (*enqueue_unpicked_mat)(unsigned char *, int, int, int, int, int);
-typedef void (*get_hsv_threshold)(double[3], double[3]); // Array always has a size of six
+typedef void (*get_hsv_threshold)(double[3], double[3]);
+typedef void (*set_last_stc_timestamp)(uint64_t);
 
 /**
  * Contains the internal state and configuration for the GL rendered
@@ -144,14 +145,15 @@ typedef struct RASPITEX_STATE {
   int opacity;        /// Alpha value for display element
   int gl_win_defined; /// Use rect from --glwin instead of preview
 
-  /* Function pointers for getting data out of VCSM square */
-  // enqueue_mat enqueue_color_mat;
-  // enqueue_mat enqueue_threshold_mat;
+  /* Function pointers for getting data out of VCSM square and synching */
   enqueue_unpicked_mat enqueue_mat;
   wait_for_vcsm_available wait_for_vcsm_read_done;
 
-  /* Function pointers for getting the current HSV thresholds */
+  /* Function pointer for getting the current HSV thresholds */
   get_hsv_threshold get_thresholds;
+
+  /* Function pointer for setting timestamps to track latency */
+  set_last_stc_timestamp set_last_frame_timestamp;
 
   /* DispmanX info. This might be unused if a custom create_native_window
    * does something else. */
@@ -175,7 +177,7 @@ typedef struct RASPITEX_STATE {
   EGLImageKHR v_egl_image; /// EGL image for V plane texture
 
   MMAL_BUFFER_HEADER_T
-      *preview_buf; /// MMAL buffer currently bound to texture(s)
+  *preview_buf; /// MMAL buffer currently bound to texture(s)
 
   RASPITEX_SCENE_T scene_id; /// Id of the scene to load
   RASPITEX_SCENE_OPS ops;    /// The interface for the current scene

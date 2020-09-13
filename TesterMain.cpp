@@ -2,8 +2,8 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 
-#include <iostream>
 #include <chrono>
+#include <iostream>
 #include <thread>
 
 #include "PicamJNI.hpp"
@@ -24,24 +24,40 @@ extern "C" {
 void print() {
   using namespace std::chrono_literals;
 
+  Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(nullptr, nullptr,
+                                                          false);
+
   auto start_time = std::chrono::steady_clock::now();
   auto last_time = std::chrono::steady_clock::now();
-  while (std::chrono::steady_clock::now() - start_time < 1h) {
+  while (std::chrono::steady_clock::now() - start_time < 10s) {
     cv::Mat *mat = reinterpret_cast<cv::Mat *>(
-        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr));
-    // std::cout << "dt: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last_time).count() << std::endl;
+        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr,
+                                                       false));
+    std::cout << "dt: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - last_time)
+                     .count()
+              << std::endl;
     last_time = std::chrono::steady_clock::now();
 
-    // std::cout << static_cast<unsigned int>(mat->at<unsigned char>(0, 0))
-    //           << std::endl;
-    // cv::imwrite("out.png", *mat);
+    std::cout << "latency: "
+              << Java_org_photonvision_raspi_PicamJNI_getFrameLatency(nullptr,
+                                                                      nullptr)
+              << std::endl;
+
     mat->release();
   }
   std::cout << "========== writing ========" << std::endl;
-  cv::Mat *mat = reinterpret_cast<cv::Mat *>(
-        Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr));
+  jlong mat_ptr =
+      Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr, true);
+  if (mat_ptr == 0) {
+    std::cerr << "Got nullptr from grab frame" << std::endl;
+    return;
+  }
+  cv::Mat *mat = reinterpret_cast<cv::Mat *>(mat_ptr);
   bool success = cv::imwrite("out.png", *mat);
-  if (!success) std::cerr << "whoops" << std::endl;  
+  if (!success)
+    std::cerr << "whoops" << std::endl;
   std::cout << "releasing" << std::endl;
   mat->release();
 }
@@ -62,7 +78,8 @@ int main(int argc, char *argv[]) {
   print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
-  // Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width / 2,
+  // Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width /
+  // 2,
   //                                                   height / 2, 60);
   // print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
