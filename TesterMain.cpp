@@ -29,7 +29,7 @@ void print() {
 
   auto start_time = std::chrono::steady_clock::now();
   auto last_time = std::chrono::steady_clock::now();
-  while (std::chrono::steady_clock::now() - start_time < 10s) {
+  while (std::chrono::steady_clock::now() - start_time < 500ms) {
     cv::Mat *mat = reinterpret_cast<cv::Mat *>(
         Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr,
                                                        false));
@@ -76,11 +76,9 @@ int main(int argc, char *argv[]) {
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width,
                                                     height, fps);
   print();
-  // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
+  Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
-  // Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width /
-  // 2,
-  //                                                   height / 2, 60);
-  // print();
+  Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width / 2, height / 2, 60);
+  print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 }
