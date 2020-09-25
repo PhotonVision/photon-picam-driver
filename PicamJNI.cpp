@@ -178,12 +178,13 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   }
 }
 
-void enqueue_mat(unsigned char *vcsm_buf, int fbo_idx, int width, int height,
+void enqueue_mat(unsigned char *vcsm_buffer, int fbo_idx, int width, int height,
                  int fb_width, int fb_height) {
   if (!inter_cropped_buffer) {
     inter_cropped_buffer = new unsigned char[fb_width * fb_height * 4];
   }
 
+  // // This seems fast enough on Linux/libpthread so no threadpool for us
   std::thread t([=] {
     {
       std::scoped_lock<std::mutex> lk(vcsm_mutexes[fbo_idx]);
@@ -192,8 +193,10 @@ void enqueue_mat(unsigned char *vcsm_buf, int fbo_idx, int width, int height,
       size_t line_size_uncropped = fb_width * 4;
       for (int y = 0; y < height; y++) {
         std::memcpy(inter_cropped_buffer + y * line_size_cropped,
-                    vcsm_buf + y * line_size_uncropped, line_size_cropped);
+                    vcsm_buffer + y * line_size_uncropped, line_size_cropped);
       }
+
+      vcsm_unlock_ptr(vcsm_buffer);
     }
 
     {
