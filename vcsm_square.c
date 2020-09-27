@@ -216,6 +216,8 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
 
   GLCHK(glClearColor(0, 0, 0, 0));
 end:
+  printf("VCSM init done\n");
+
   return rc;
 }
 

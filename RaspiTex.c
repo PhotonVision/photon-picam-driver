@@ -327,6 +327,8 @@ end:
 static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
   RASPITEX_STATE *state = (RASPITEX_STATE *)port->userdata;
 
+  if (state->preview_stop == 1) return;
+
   if (buf->length == 0) {
     vcos_log_trace("%s: zero-length buffer => EOS", port->name);
     state->preview_stop = 1;
