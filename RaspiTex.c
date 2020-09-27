@@ -115,30 +115,6 @@ static void update_fps() {
 }
 
 /**
- * Captures the frame-buffer if requested.
- * @param state RASPITEX STATE
- * @return Zero if successful.
- */
-static void raspitex_do_capture(RASPITEX_STATE *state) {
-  uint8_t *buffer = NULL;
-  size_t size = 0;
-
-  if (state->capture.request) {
-    if (state->ops.capture(state, &buffer, &size) == 0) {
-      /* Pass ownership of buffer to main thread via capture state */
-      state->capture.buffer = buffer;
-      state->capture.size = size;
-    } else {
-      state->capture.buffer = NULL; // Null indicates an error
-      state->capture.size = 0;
-    }
-
-    state->capture.request = 0; // Always clear request and post sem
-    vcos_semaphore_post(&state->capture.completed_sem);
-  }
-}
-
-/**
  * Checks if there is at least one valid EGL image.
  * @param state RASPITEX STATE
  * @return Zero if successful.
@@ -277,7 +253,7 @@ static int preview_process_returned_bufs(RASPITEX_STATE *state) {
  * @return NULL always.
  */
 static void *preview_worker(void *arg) {
-  RASPITEX_STATE *state = arg;
+  RASPITEX_STATE *state = (RASPITEX_STATE *) arg;
   MMAL_PORT_T *preview_port = state->preview_port;
   MMAL_BUFFER_HEADER_T *buf;
   MMAL_STATUS_T st;
@@ -327,7 +303,8 @@ end:
 static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
   RASPITEX_STATE *state = (RASPITEX_STATE *)port->userdata;
 
-  if (state->preview_stop == 1) return;
+  if (state->preview_stop == 1)
+    return;
 
   if (buf->length == 0) {
     vcos_log_trace("%s: zero-length buffer => EOS", port->name);

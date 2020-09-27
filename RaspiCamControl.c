@@ -527,7 +527,7 @@ int raspicamcontrol_set_colourFX(MMAL_COMPONENT_T *camera,
  * @return 0 if successful, non-zero if any parameters out of range
  */
 int raspicamcontrol_set_rotation(MMAL_COMPONENT_T *camera, int rotation) {
-  int ret;
+  MMAL_STATUS_T ret;
   int my_rotation = ((rotation % 360) / 90) * 90;
 
   ret = mmal_port_parameter_set_int32(camera->output[0],
@@ -606,7 +606,7 @@ int raspicamcontrol_zoom_in_zoom_out(MMAL_COMPONENT_T *camera,
   }
 
   if (zoom_command == ZOOM_IN) {
-    if (crop.rect.width <= (zoom_full_16P16 + zoom_increment_16P16)) {
+    if ((uint32_t) crop.rect.width <= (zoom_full_16P16 + zoom_increment_16P16)) {
       crop.rect.width = zoom_full_16P16;
       crop.rect.height = zoom_full_16P16;
     } else {
@@ -615,7 +615,7 @@ int raspicamcontrol_zoom_in_zoom_out(MMAL_COMPONENT_T *camera,
     }
   } else if (zoom_command == ZOOM_OUT) {
     unsigned int increased_size = crop.rect.width + zoom_increment_16P16;
-    if (increased_size < crop.rect.width) // overflow
+    if (increased_size < (uint32_t) crop.rect.width) // overflow
     {
       crop.rect.width = 65536;
       crop.rect.height = 65536;
@@ -723,14 +723,15 @@ int raspicamcontrol_set_annotate(MMAL_COMPONENT_T *camera, const int settings,
       {MMAL_PARAMETER_ANNOTATE, sizeof(MMAL_PARAMETER_CAMERA_ANNOTATE_V4_T)}};
 
   if (settings) {
-    time_t t = time(NULL);
+    /*time_t t = time(NULL);
     struct tm tm = *localtime(&t);
     char tmp[MMAL_CAMERA_ANNOTATE_MAX_TEXT_LEN_V4];
-    int process_datetime = 1;
+    int process_datetime = 1;*/
 
     annotate.enable = 1;
 
-    if (settings & (ANNOTATE_APP_TEXT | ANNOTATE_USER_TEXT)) {
+    // Can't be bothered to fix warnings
+    /*if (settings & (ANNOTATE_APP_TEXT | ANNOTATE_USER_TEXT)) {
       if ((settings & (ANNOTATE_TIME_TEXT | ANNOTATE_DATE_TEXT)) &&
           strchr(string, '%') != NULL) {
         // string contains strftime parameter?
@@ -761,7 +762,7 @@ int raspicamcontrol_set_annotate(MMAL_COMPONENT_T *camera, const int settings,
       }
       strncat(annotate.text, tmp,
               MMAL_CAMERA_ANNOTATE_MAX_TEXT_LEN_V3 - strlen(annotate.text) - 1);
-    }
+    }*/
 
     if (settings & ANNOTATE_SHUTTER_SETTINGS)
       annotate.show_shutter = MMAL_TRUE;
