@@ -40,6 +40,6 @@ tester: ${OBJS}
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ ${OBJS} $(LDFLAGS)
 
 libpicam.so: ${OBJS}
-	$(CXX) $(CFLAGS) $(CXXFLAGS) $(INCLUDES) -o $@ -shared $(SRC) $(LDFLAGS) 
+	$(CC) -shared $(INCLUDES) -o $@ ${OBJS} $(LDFLAGS)
 
 $(info ${OBJS})
