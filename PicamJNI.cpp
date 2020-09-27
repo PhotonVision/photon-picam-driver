@@ -188,12 +188,14 @@ void enqueue_mat(unsigned char *vcsm_buffer, int fbo_idx, int width, int height,
     auto inter_cropped_buffer = intermediate_buffers[fbo_idx];
     inter_cropped_buffer.clear();
     inter_cropped_buffer.reserve(width * height * 4);
-    unsigned char *inter_cropped_buffer_data = inter_cropped_buffer.data(); // Must be outside of loop for autovectorization
+    unsigned char *inter_cropped_buffer_data =
+        inter_cropped_buffer
+            .data(); // Must be outside of loop for autovectorization
 
     {
       size_t line_size_cropped = width * 4;
       size_t line_size_uncropped = fb_width * 4;
- 
+
       for (int y = 0; y < height; y++) {
         std::memcpy(inter_cropped_buffer_data + y * line_size_cropped,
                     vcsm_buffer + y * line_size_uncropped, line_size_cropped);
@@ -205,7 +207,8 @@ void enqueue_mat(unsigned char *vcsm_buffer, int fbo_idx, int width, int height,
     {
       std::scoped_lock lk(mat_available_mutex);
 
-      // Once again needs to be calculated outside of the loop for the loop to get vectorized
+      // Once again needs to be calculated outside of the loop for the loop to
+      // get vectorized
       int bound = width * height;
 
       threshold_mat = cv::Mat(height, width, CV_8UC1);
@@ -215,7 +218,8 @@ void enqueue_mat(unsigned char *vcsm_buffer, int fbo_idx, int width, int height,
         color_mat = cv::Mat(height, width, CV_8UC3);
         unsigned char *color_out_buf = color_mat.data;
         for (int i = 0; i < bound; i++) {
-          std::memcpy(color_out_buf + i * 3, inter_cropped_buffer_data + i * 4, 3);
+          std::memcpy(color_out_buf + i * 3, inter_cropped_buffer_data + i * 4,
+                      3);
           threshold_out_buf[i] = inter_cropped_buffer_data[i * 4 + 3];
         }
       } else {
