@@ -20,6 +20,6 @@
 
 #include "RaspiTex.h"
 
-int vcsm_square_open(RASPITEX_STATE *state);
+int threshold_shader_open(RASPITEX_STATE *state);
 
 #endif /* THRESHOLD_SHADER_H */
