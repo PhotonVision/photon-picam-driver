@@ -1,6 +1,6 @@
 # Pick up the appropriate files and make a runnable binary
-OBJS=PicamJNI.o RaspiTex.o RaspiTexUtil.o RaspiCamControl.o RaspiHelpers.o vcsm_square.o TesterMain.o
-SRC=TesterMain.cpp PicamJNI.cpp RaspiTex.c RaspiCamControl.c RaspiHelpers.c RaspiTexUtil.c vcsm_square.c
+OBJS=PicamJNI.o RaspiTex.o RaspiTexUtil.o RaspiCamControl.o RaspiHelpers.o ThresholdingShader.o TesterMain.o
+SRC=TesterMain.cpp PicamJNI.cpp RaspiTex.c RaspiCamControl.c RaspiHelpers.c RaspiTexUtil.c ThresholdingShader.c
 
 # We need these so that GCC vectorizes the loop that copies out every fourth pixel from VCSM
 CFLAGS+=-O3 -mfpu=neon -ftree-vectorize -fPIC -Wall -Werror #-g -ggdb -fsanitize=undefined -fsanitize=address

@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "vcsm_square.h"
+#include "ThresholdingShader.h"
 #include "RaspiTex.h"
 #include "RaspiTexUtil.h"
 #include <EGL/egl.h>
@@ -25,7 +25,7 @@
 
 /* Draw a scaled quad showing the entire texture with the
  * origin defined as an attribute */
-static RASPITEXUTIL_SHADER_PROGRAM_T vcsm_square_oes_shader = {
+static RASPITEXUTIL_SHADER_PROGRAM_T threshold_shader_oes_shader = {
     .vertex_source = "#version 100\n"
                      ""
                      "attribute vec2 vertex;"
@@ -102,7 +102,7 @@ unsigned int next_power_of_two(unsigned int num) {
   return (unsigned int)pow(2, ceil(log2(num)));
 }
 
-static const EGLint vcsm_square_egl_config_attribs[] = {EGL_RED_SIZE,
+static const EGLint threshold_shader_egl_config_attribs[] = {EGL_RED_SIZE,
                                                         8,
                                                         EGL_GREEN_SIZE,
                                                         8,
@@ -147,7 +147,7 @@ static int init_framebuffer(FRAMEBUFFER *fb, RASPITEX_STATE *raspitex_state) {
   return 0;
 }
 
-static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
+static int threshold_shader_init(RASPITEX_STATE *raspitex_state) {
   printf("Using VCSM\n");
 
   int rc = vcsm_init();
@@ -155,16 +155,16 @@ static int vcsm_square_init(RASPITEX_STATE *raspitex_state) {
   fb_width = next_power_of_two(raspitex_state->width);
   fb_height = next_power_of_two(raspitex_state->height);
 
-  raspitex_state->egl_config_attribs = vcsm_square_egl_config_attribs;
+  raspitex_state->egl_config_attribs = threshold_shader_egl_config_attribs;
   rc = raspitexutil_gl_init_2_0(raspitex_state);
   if (rc != 0)
     goto end;
 
   // Shader for drawing the YUV OES texture
-  rc = raspitexutil_build_shader_program(&vcsm_square_oes_shader);
-  GLCHK(glUseProgram(vcsm_square_oes_shader.program));
+  rc = raspitexutil_build_shader_program(&threshold_shader_oes_shader);
+  GLCHK(glUseProgram(threshold_shader_oes_shader.program));
   GLCHK(
-      glUniform1i(vcsm_square_oes_shader.uniform_locations[0], 0)); // tex unit
+      glUniform1i(threshold_shader_oes_shader.uniform_locations[0], 0)); // tex unit
 
   for (int i = 0; i < NUM_FRAMEBUFFERS; i++) {
     rc = init_framebuffer(&framebuffers[i], raspitex_state);
@@ -185,7 +185,7 @@ end:
   return rc;
 }
 
-static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
+static int threshold_shader_redraw(RASPITEX_STATE *raspitex_state) {
   unsigned char *vcsm_buffer = NULL;
   VCSM_CACHE_TYPE_T cache_type;
 
@@ -199,22 +199,22 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Fill the viewport with the camFill the viewport with the camera image
-  GLCHK(glUseProgram(vcsm_square_oes_shader.program));
+  GLCHK(glUseProgram(threshold_shader_oes_shader.program));
 
   GLCHK(glActiveTexture(GL_TEXTURE0));
   GLCHK(glBindTexture(GL_TEXTURE_EXTERNAL_OES, raspitex_state->texture));
 
   GLCHK(glBindBuffer(GL_ARRAY_BUFFER, quad_vbo));
   GLCHK(
-      glEnableVertexAttribArray(vcsm_square_oes_shader.attribute_locations[0]));
-  GLCHK(glVertexAttribPointer(vcsm_square_oes_shader.attribute_locations[0], 2,
+      glEnableVertexAttribArray(threshold_shader_oes_shader.attribute_locations[0]));
+  GLCHK(glVertexAttribPointer(threshold_shader_oes_shader.attribute_locations[0], 2,
                               GL_FLOAT, GL_FALSE, 0, 0));
 
   double lo[3], up[3];
   raspitex_state->get_thresholds(lo, up);
-  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[1], lo[0], lo[1],
+  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[1], lo[0], lo[1],
                     lo[2])); // lower thresh
-  GLCHK(glUniform3f(vcsm_square_oes_shader.uniform_locations[2], up[0], up[1],
+  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[2], up[0], up[1],
                     up[2])); // lower thresh
 
   GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
@@ -240,11 +240,11 @@ static int vcsm_square_redraw(RASPITEX_STATE *raspitex_state) {
   return 0;
 }
 
-int vcsm_square_open(RASPITEX_STATE *raspitex_state) {
+int threshold_shader_open(RASPITEX_STATE *raspitex_state) {
   vcos_log_trace("%s", VCOS_FUNCTION);
 
-  raspitex_state->ops.gl_init = vcsm_square_init;
-  raspitex_state->ops.redraw = vcsm_square_redraw;
+  raspitex_state->ops.gl_init = threshold_shader_init;
+  raspitex_state->ops.redraw = threshold_shader_redraw;
   raspitex_state->ops.update_texture = raspitexutil_update_texture;
   return 0;
 }

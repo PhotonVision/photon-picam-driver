@@ -36,7 +36,7 @@
 #include <interface/mmal/util/mmal_util_params.h>
 #include <interface/vcos/vcos.h>
 
-#include "vcsm_square.h"
+#include "ThresholdingShader.h"
 
 /**
  * \file RaspiTex.c
@@ -408,7 +408,7 @@ int raspitex_init(RASPITEX_STATE *state) {
 
   switch (state->scene_id) {
   case RASPITEX_SCENE_VCSM_SQUARE:
-    rc = vcsm_square_open(state);
+    rc = threshold_shader_open(state);
     break;
   default:
     rc = -1;
