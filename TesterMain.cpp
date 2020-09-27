@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   print();
   Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
-  Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width / 2, height / 2, 60);
+  Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, 1280, 720, 45);
   print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 }
