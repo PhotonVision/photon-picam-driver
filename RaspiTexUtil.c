@@ -427,8 +427,9 @@ int raspitexutil_capture_bgra(RASPITEX_STATE *state, uint8_t **buffer,
                  bytes_per_pixel);
 
   *buffer_size = state->width * state->height * bytes_per_pixel;
-  // Not portable! Fixing this crappy code probably isn't worth it though because the word size on most platforms is 8 bytes.
-  *buffer = (uint8_t *) calloc(*buffer_size, 1);
+  // Not portable! Fixing this crappy code probably isn't worth it though
+  // because the word size on most platforms is 8 bytes.
+  *buffer = (uint8_t *)calloc(*buffer_size, 1);
   if (!*buffer)
     goto error;
 

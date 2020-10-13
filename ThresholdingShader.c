@@ -52,8 +52,8 @@ static RASPITEXUTIL_SHADER_PROGRAM_T threshold_shader_oes_shader = {
         "vec3 rgb2hsv(const vec3 p) {"
         "  const vec4 H = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
         // Using ternary seems to be faster than using mix and step
-        "  vec4 o = p.g < p.b ? vec4(p.bg, H.wz) : vec4(p.gb, H.xy);"
-        "  vec4 t = p.r < o.x ? vec4(o.xyw, p.r) : vec4(p.r, o.yzx);"
+        "  vec4 o = mix(vec4(p.bg, H.wz), vec4(p.gb, H.xy), step(p.b, p.g));"
+        "  vec4 t = mix(vec4(o.xyw, p.r), vec4(p.r, o.yzx), step(o.x, p.r));"
         ""
         "  float O = t.x - min(t.w, t.y);"
         "  const float n = 1.0e-10;"
@@ -62,14 +62,15 @@ static RASPITEXUTIL_SHADER_PROGRAM_T threshold_shader_oes_shader = {
         "}"
         ""
         "bool inRange(vec3 hsv) {"
-        "  bvec3 botBool = greaterThanEqual(hsv, lowerThresh);"
-        "  bvec3 topBool = lessThanEqual(hsv, upperThresh);"
+        "  const float epsilon = 0.0001;"
+        "  bvec3 botBool = greaterThanEqual(hsv, lowerThresh - epsilon);"
+        "  bvec3 topBool = lessThanEqual(hsv, upperThresh + epsilon);"
         "  return all(botBool) && all(topBool);"
         "}"
         ""
         "void main(void) {"
         "  vec3 col = texture2D(tex, texcoord).rgb;"
-        "  gl_FragColor = vec4(col, int(inRange(rgb2hsv(col))));"
+        "  gl_FragColor = vec4(col.bgr, int(inRange(rgb2hsv(col))));"
         "}",
     .uniform_names = {"tex", "lowerThresh", "upperThresh"},
     .attribute_names = {"vertex"},
@@ -102,17 +103,18 @@ unsigned int next_power_of_two(unsigned int num) {
   return (unsigned int)pow(2, ceil(log2(num)));
 }
 
-static const EGLint threshold_shader_egl_config_attribs[] = {EGL_RED_SIZE,
-                                                        8,
-                                                        EGL_GREEN_SIZE,
-                                                        8,
-                                                        EGL_BLUE_SIZE,
-                                                        8,
-                                                        EGL_ALPHA_SIZE,
-                                                        8,
-                                                        EGL_RENDERABLE_TYPE,
-                                                        EGL_OPENGL_ES2_BIT,
-                                                        EGL_NONE};
+static const EGLint threshold_shader_egl_config_attribs[] = {
+    EGL_RED_SIZE,
+    8,
+    EGL_GREEN_SIZE,
+    8,
+    EGL_BLUE_SIZE,
+    8,
+    EGL_ALPHA_SIZE,
+    8,
+    EGL_RENDERABLE_TYPE,
+    EGL_OPENGL_ES2_BIT,
+    EGL_NONE};
 
 // Initializes and binds a framebuffer bound to a ELG_IMAGE_BRCM_VCSM EGLImage
 static int init_framebuffer(FRAMEBUFFER *fb, RASPITEX_STATE *raspitex_state) {
@@ -163,8 +165,8 @@ static int threshold_shader_init(RASPITEX_STATE *raspitex_state) {
   // Shader for drawing the YUV OES texture
   rc = raspitexutil_build_shader_program(&threshold_shader_oes_shader);
   GLCHK(glUseProgram(threshold_shader_oes_shader.program));
-  GLCHK(
-      glUniform1i(threshold_shader_oes_shader.uniform_locations[0], 0)); // tex unit
+  GLCHK(glUniform1i(threshold_shader_oes_shader.uniform_locations[0],
+                    0)); // tex unit
 
   for (int i = 0; i < NUM_FRAMEBUFFERS; i++) {
     rc = init_framebuffer(&framebuffers[i], raspitex_state);
@@ -192,10 +194,24 @@ static int threshold_shader_redraw(RASPITEX_STATE *raspitex_state) {
   current_fb_idx = (current_fb_idx + 1) % NUM_FRAMEBUFFERS;
   raspitex_state->wait_for_vcsm_read_done(current_fb_idx);
 
+  // XXX: Currently doesn't work
+  unsigned int rotated_width = raspitex_state->width,
+               rotated_height = raspitex_state->height;
+  if (abs(raspitex_state->preview_rotation % 180) == 90 && 0) {
+    unsigned int width = rotated_width;
+    rotated_width = rotated_height;
+    rotated_height = width;
+  }
+
+  fb_width = next_power_of_two(rotated_width);
+  fb_height = next_power_of_two(rotated_height);
+  framebuffers[current_fb_idx].vcsm_info.width = fb_width;
+  framebuffers[current_fb_idx].vcsm_info.height = fb_height;
+
   glClearColor(255, 255, 255, 255);
 
   GLCHK(glBindFramebuffer(GL_FRAMEBUFFER, framebuffers[current_fb_idx].name));
-  GLCHK(glViewport(0, 0, raspitex_state->width, raspitex_state->height));
+  GLCHK(glViewport(0, 0, rotated_width, rotated_height));
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Fill the viewport with the camFill the viewport with the camera image
@@ -205,17 +221,20 @@ static int threshold_shader_redraw(RASPITEX_STATE *raspitex_state) {
   GLCHK(glBindTexture(GL_TEXTURE_EXTERNAL_OES, raspitex_state->texture));
 
   GLCHK(glBindBuffer(GL_ARRAY_BUFFER, quad_vbo));
+  GLCHK(glEnableVertexAttribArray(
+      threshold_shader_oes_shader.attribute_locations[0]));
   GLCHK(
-      glEnableVertexAttribArray(threshold_shader_oes_shader.attribute_locations[0]));
-  GLCHK(glVertexAttribPointer(threshold_shader_oes_shader.attribute_locations[0], 2,
-                              GL_FLOAT, GL_FALSE, 0, 0));
+      glVertexAttribPointer(threshold_shader_oes_shader.attribute_locations[0],
+                            2, GL_FLOAT, GL_FALSE, 0, 0));
 
   double lo[3], up[3];
   raspitex_state->get_thresholds(lo, up);
-  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[1], lo[0], lo[1],
+  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[1], lo[0],
+                    lo[1],
                     lo[2])); // lower thresh
-  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[2], up[0], up[1],
-                    up[2])); // lower thresh
+  GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[2], up[0],
+                    up[1],
+                    up[2])); // upper thresh
 
   GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
 
@@ -231,9 +250,8 @@ static int threshold_shader_redraw(RASPITEX_STATE *raspitex_state) {
     return -1;
   }
 
-  raspitex_state->enqueue_mat(vcsm_buffer, current_fb_idx,
-                              raspitex_state->width, raspitex_state->height,
-                              fb_width, fb_height);
+  raspitex_state->enqueue_mat(vcsm_buffer, current_fb_idx, rotated_width,
+                              rotated_height, fb_width, fb_height);
 
   GLCHK(glUseProgram(0));
 

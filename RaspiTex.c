@@ -81,28 +81,6 @@
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
 
-static void update_fps() {
-  static int frame_count = 0;
-  static long long time_start = 0;
-  long long time_now;
-  struct timeval te;
-  float fps;
-
-  frame_count++;
-
-  gettimeofday(&te, NULL);
-  time_now = te.tv_sec * 1000LL + te.tv_usec / 1000;
-
-  if (time_start == 0) {
-    time_start = time_now;
-  } else if (time_now - time_start > 5000) {
-    fps = (float)frame_count / ((time_now - time_start) / 1000.0);
-    frame_count = 0;
-    time_start = time_now;
-    printf("%3.2f FPS\n", fps);
-  }
-}
-
 /**
  * Checks if there is at least one valid EGL image.
  * @param state RASPITEX STATE
@@ -190,10 +168,8 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
     if (rc != 0)
       goto end;
 
-    // eglSwapBuffers(state->display, state->surface);
-    update_fps();
   } else {
-    // vcos_log_trace("%s: No preview image", VCOS_FUNCTION);
+    vcos_log_trace("%s: No preview image", VCOS_FUNCTION);
   }
 
 end:
@@ -242,7 +218,7 @@ static int preview_process_returned_bufs(RASPITEX_STATE *state) {
  * @return NULL always.
  */
 static void *preview_worker(void *arg) {
-  RASPITEX_STATE *state = (RASPITEX_STATE *) arg;
+  RASPITEX_STATE *state = (RASPITEX_STATE *)arg;
   MMAL_PORT_T *preview_port = state->preview_port;
   MMAL_BUFFER_HEADER_T *buf;
   MMAL_STATUS_T st;
@@ -292,8 +268,13 @@ end:
 static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
   RASPITEX_STATE *state = (RASPITEX_STATE *)port->userdata;
 
-  if (state->preview_stop == 1)
+  vcos_mutex_lock(&state->preview_stop_mutex);
+
+  if (state->preview_stop == 1) {
+    // No RAII :((((
+    vcos_mutex_unlock(&state->preview_stop_mutex);
     return;
+  }
 
   if (buf->length == 0) {
     vcos_log_trace("%s: zero-length buffer => EOS", port->name);
@@ -308,6 +289,8 @@ static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
      */
     mmal_queue_put(state->preview_queue, buf);
   }
+
+  vcos_mutex_unlock(&state->preview_stop_mutex);
 }
 
 /* Registers a callback on the camera preview port to receive
@@ -396,6 +379,12 @@ int raspitex_init(RASPITEX_STATE *state) {
                      state->verbose ? VCOS_LOG_INFO : VCOS_LOG_WARN);
   vcos_log_trace("%s", VCOS_FUNCTION);
 
+  status = vcos_mutex_create(&state->preview_stop_mutex,
+                             "photonvision preview stop lock");
+  if (status != VCOS_SUCCESS) {
+    goto error;
+  }
+
   status =
       vcos_semaphore_create(&state->capture.start_sem, "glcap_start_sem", 1);
   if (status != VCOS_SUCCESS)
@@ -445,6 +434,7 @@ void raspitex_destroy(RASPITEX_STATE *state) {
   if (state->ops.close)
     state->ops.close(state);
 
+  vcos_mutex_delete(&state->preview_stop_mutex);
   vcos_semaphore_delete(&state->capture.start_sem);
   vcos_semaphore_delete(&state->capture.completed_sem);
 }
@@ -486,9 +476,13 @@ void raspitex_set_defaults(RASPITEX_STATE *state) {
  */
 void raspitex_stop(RASPITEX_STATE *state) {
   if (!state->preview_stop) {
+    vcos_mutex_lock(&state->preview_stop_mutex);
+
     vcos_log_trace("Stopping GL preview");
     state->preview_stop = 1;
     vcos_thread_join(&state->preview_thread, NULL);
+
+    vcos_mutex_unlock(&state->preview_stop_mutex);
   }
 }
 
