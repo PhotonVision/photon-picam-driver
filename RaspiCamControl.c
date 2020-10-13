@@ -51,10 +51,10 @@ void raspicamcontrol_set_defaults(RASPICAM_CAMERA_PARAMETERS *params) {
   params->ISO = 0; // 0 = auto
   params->videoStabilisation = 0;
   params->exposureCompensation = 0;
-  params->exposureMode = MMAL_PARAM_EXPOSUREMODE_AUTO;
+  params->exposureMode = MMAL_PARAM_EXPOSUREMODE_OFF;
   params->flickerAvoidMode = MMAL_PARAM_FLICKERAVOID_OFF;
   params->exposureMeterMode = MMAL_PARAM_EXPOSUREMETERINGMODE_AVERAGE;
-  params->awbMode = MMAL_PARAM_AWBMODE_AUTO;
+  params->awbMode = MMAL_PARAM_AWBMODE_OFF;
   params->imageEffect = MMAL_PARAM_IMAGEFX_NONE;
   params->colourEffects.enable = 0;
   params->colourEffects.u = 128;
@@ -595,7 +595,7 @@ int raspicamcontrol_zoom_in_zoom_out(MMAL_COMPONENT_T *camera,
   }
 
   if (zoom_command == ZOOM_IN) {
-    if ((uint32_t) crop.rect.width <= (zoom_full_16P16 + zoom_increment_16P16)) {
+    if ((uint32_t)crop.rect.width <= (zoom_full_16P16 + zoom_increment_16P16)) {
       crop.rect.width = zoom_full_16P16;
       crop.rect.height = zoom_full_16P16;
     } else {
@@ -604,7 +604,7 @@ int raspicamcontrol_zoom_in_zoom_out(MMAL_COMPONENT_T *camera,
     }
   } else if (zoom_command == ZOOM_OUT) {
     unsigned int increased_size = crop.rect.width + zoom_increment_16P16;
-    if (increased_size < (uint32_t) crop.rect.width) // overflow
+    if (increased_size < (uint32_t)crop.rect.width) // overflow
     {
       crop.rect.width = 65536;
       crop.rect.height = 65536;

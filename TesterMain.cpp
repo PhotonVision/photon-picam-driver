@@ -33,6 +33,9 @@ void print() {
     cv::Mat *mat = reinterpret_cast<cv::Mat *>(
         Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr,
                                                        false));
+    if (std::chrono::steady_clock::now() - start_time > 100ms)
+      Java_org_photonvision_raspi_PicamJNI_setRotation(nullptr, nullptr, 90);
+
     std::cout << "dt: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(
                      std::chrono::steady_clock::now() - last_time)
@@ -44,6 +47,8 @@ void print() {
               << Java_org_photonvision_raspi_PicamJNI_getFrameLatency(nullptr,
                                                                       nullptr)
               << std::endl;
+
+    std::cout << "size: " << mat->cols << "x" << mat->rows << std::endl;
 
     mat->release();
   }
@@ -80,6 +85,9 @@ int main(int argc, char *argv[]) {
 
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, 1280, 720,
                                                     45);
+
+  Java_org_photonvision_raspi_PicamJNI_setRotation(nullptr, nullptr, 90);
+
   print();
   // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 }

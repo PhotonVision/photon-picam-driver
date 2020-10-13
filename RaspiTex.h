@@ -112,13 +112,17 @@ typedef void (*set_last_stc_timestamp)(uint64_t);
  * preview window.
  */
 typedef struct RASPITEX_STATE {
-  int version_major;            /// For binary compatibility
-  int version_minor;            /// Incremented for new features
-  MMAL_PORT_T *preview_port;    /// Source port for preview opaque buffers
-  MMAL_POOL_T *preview_pool;    /// Pool for storing opaque buffer handles
-  MMAL_QUEUE_T *preview_queue;  /// Queue preview buffers to display in order
-  VCOS_THREAD_T preview_thread; /// Preview worker / GL rendering thread
-  uint32_t preview_stop;        /// If zero the worker can continue
+  int version_major;               /// For binary compatibility
+  int version_minor;               /// Incremented for new features
+  MMAL_PORT_T *preview_port;       /// Source port for preview opaque buffers
+  MMAL_POOL_T *preview_pool;       /// Pool for storing opaque buffer handles
+  MMAL_QUEUE_T *preview_queue;     /// Queue preview buffers to display in order
+  VCOS_THREAD_T preview_thread;    /// Preview worker / GL rendering thread
+  VCOS_MUTEX_T preview_stop_mutex; /// Protects us from stopping in the middle
+                                   /// of a frame callback
+  uint32_t preview_stop;           /// If zero the worker can continue
+
+  int preview_rotation; /// In degrees
 
   /* Copy of preview window params */
   int32_t preview_x;      /// x-offset of preview window

@@ -77,7 +77,9 @@ std::vector<unsigned char> inter_cropped_buffer;
 
 std::thread mat_thread;
 
-bool copy_color = true; // Protected by mat_available_mutex
+bool copy_color = false;  // Protected by mat_available_mutex
+unsigned int current_fps; // Not protected by any mutex because the camera needs
+                          // to be destroyed for this to change
 
 std::mutex timestamp_mutex;
 uint64_t last_stc_timestamp;
@@ -95,6 +97,8 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
   int status;
 
   bcm_host_init();
+
+  current_fps = fps;
 
   status = mmal_component_create(MMAL_COMPONENT_DEFAULT_CAMERA, &state->camera);
   if (status != MMAL_SUCCESS) {
@@ -346,7 +350,11 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
     JNIEnv *, jclass, jint exposure) {
-  return raspicamcontrol_set_exposure_compensation(mmal_state.camera, exposure);
+  constexpr int padding_microseconds = 1000;
+  return raspicamcontrol_set_shutter_speed(
+      mmal_state.camera, padding_microseconds + ((double)exposure / 100.0) *
+                                                    (1e6 / current_fps -
+                                                     2 * padding_microseconds));
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
@@ -362,7 +370,8 @@ Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
     JNIEnv *, jclass, jint rotation) {
-  return false;
+  tex_state.preview_rotation = rotation;
+  return raspicamcontrol_set_rotation(mmal_state.camera, rotation);
 }
 
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
