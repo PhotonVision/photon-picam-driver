@@ -244,8 +244,6 @@ void set_last_timestamp(uint64_t stc_timestamp) {
 }
 
 void wait_for_vcsm_read_done(int fbo_idx) {
-  // Acquire exclusive lock, which makes us block until the shared lock is
-  // unlocked
   std::scoped_lock<std::mutex> lk(vcsm_mutexes[fbo_idx]);
 }
 
@@ -364,7 +362,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
 
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
-  // TODO: this takes two parameters, but V4L2/cscore only exposes one
+  // Right now we only expose one parameter
   return raspicamcontrol_set_gains(mmal_state.camera, gain, gain);
 }
 
@@ -395,7 +393,6 @@ Java_org_photonvision_raspi_PicamJNI_getFrameLatency(JNIEnv *, jclass) {
 
 JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
     JNIEnv *, jclass, jboolean should_return_color) {
-  ;
   {
     jlong ret = 0;
 
@@ -409,6 +406,7 @@ JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
       // return will have already been released by the Java code. Caveat emptor.
       mat_available.wait(lk);
 
+    // Mat is released by Java code
     if (!color_mat.empty() && should_return_color)
       ret = reinterpret_cast<jlong>(new cv::Mat(color_mat));
     else if (!should_return_color)
