@@ -187,27 +187,20 @@ end:
  */
 static int preview_process_returned_bufs(RASPITEX_STATE *state) {
   MMAL_BUFFER_HEADER_T *buf;
-  int new_frame = 0;
   int rc = 0;
 
   while ((buf = mmal_queue_get(state->preview_queue)) != NULL) {
     if (state->preview_stop == 0) {
-      new_frame = 1;
       rc = raspitex_draw(state, buf);
       if (rc != 0) {
         vcos_log_error("%s: Error drawing frame. Stopping.", VCOS_FUNCTION);
         state->preview_stop = 1;
+        vcos_mutex_unlock(&state->preview_stop_mutex);
         return rc;
       }
     }
   }
 
-  /* If there were no new frames then redraw the scene again with the previous
-   * texture. Otherwise, go round the loop again to see if any new buffers
-   * are returned.
-   */
-  if (!new_frame)
-    rc = raspitex_draw(state, NULL);
   return rc;
 }
 
@@ -235,6 +228,7 @@ static void *preview_worker(void *arg) {
     goto end;
 
   while (state->preview_stop == 0) {
+    vcos_mutex_lock(&state->preview_stop_mutex);
     /* Send empty buffers to camera preview port */
     while ((buf = mmal_queue_get(state->preview_pool->queue)) != NULL) {
       st = mmal_port_send_buffer(preview_port, buf);
@@ -247,6 +241,7 @@ static void *preview_worker(void *arg) {
       vcos_log_error("Preview error. Exiting.");
       state->preview_stop = 1;
     }
+    vcos_mutex_unlock(&state->preview_stop_mutex);
   }
 
 end:
@@ -268,11 +263,7 @@ end:
 static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
   RASPITEX_STATE *state = (RASPITEX_STATE *)port->userdata;
 
-  vcos_mutex_lock(&state->preview_stop_mutex);
-
   if (state->preview_stop == 1) {
-    // No RAII :((((
-    vcos_mutex_unlock(&state->preview_stop_mutex);
     return;
   }
 
@@ -289,8 +280,6 @@ static void preview_output_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf) {
      */
     mmal_queue_put(state->preview_queue, buf);
   }
-
-  vcos_mutex_unlock(&state->preview_stop_mutex);
 }
 
 /* Registers a callback on the camera preview port to receive
@@ -476,12 +465,12 @@ void raspitex_set_defaults(RASPITEX_STATE *state) {
  */
 void raspitex_stop(RASPITEX_STATE *state) {
   if (!state->preview_stop) {
-    vcos_mutex_lock(&state->preview_stop_mutex);
 
     vcos_log_trace("Stopping GL preview");
     state->preview_stop = 1;
     vcos_thread_join(&state->preview_thread, NULL);
 
+    vcos_mutex_lock(&state->preview_stop_mutex);
     vcos_mutex_unlock(&state->preview_stop_mutex);
   }
 }
