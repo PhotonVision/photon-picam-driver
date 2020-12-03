@@ -3,11 +3,11 @@ OBJS=PicamJNI.o RaspiTex.o RaspiTexUtil.o RaspiCamControl.o RaspiHelpers.o Thres
 SRC=TesterMain.cpp PicamJNI.cpp RaspiTex.c RaspiCamControl.c RaspiHelpers.c RaspiTexUtil.c ThresholdingShader.c
 
 # We need these so that GCC vectorizes the loop that copies out every fourth pixel from VCSM
-CFLAGS+=-O3 -mfpu=neon -ftree-vectorize -fPIC -Wall -Werror #-g -ggdb -fsanitize=undefined -fsanitize=address
+CFLAGS+=-Ofast -mfpu=neon -ftree-vectorize -fPIC -Wall -Werror -Wno-unknown-warning-option -Wno-unused-command-line-argument -g -ggdb #-fsanitize=address -fsanitize=undefined
 CXXFLAGS+=-std=c++17
 
 # Looots of dependencies
-LDFLAGS+=-lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvcsm -lmmal -lmmal_core -lmmal_util -lm -ldl -lpthread -lstdc++ #-lasan
+LDFLAGS+=-lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvcsm -lmmal -lmmal_core -lmmal_util -lm -ldl -lpthread -lstdc++# -lasan -lubsan
 INCLUDES+=-I$(SDKSTAGE)/opt/vc/include/
 
 # Include JNI files from the default JDK
