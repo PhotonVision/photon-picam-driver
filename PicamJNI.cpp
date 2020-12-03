@@ -308,6 +308,22 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
   raspitex_stop(&tex_state);
+
+  {
+    // Yuuuge hack... mmal_vc_port_send_callback gets called when buffers come
+    // back from the VC, and it doesn't check to see if we've freed the port
+    // that the callback is associated with. If the VC starts processing a
+    // buffer before we stop everything, and then returns the buffer after we've
+    // stopped then there's the possibility that it'll get returned after all
+    // the resources that are used to handle it have been freed, which is UB.
+    // Ideally we'd have a nullptr check there, but alas, we can't easily patch
+    // that code. Waiting to make sure that all buffers get processed before we
+    // free is a solution, albeit a shitty one.
+
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(100ms);
+  }
+
   raspitex_destroy(&tex_state);
 
   // Disable all ports not handled by connections
