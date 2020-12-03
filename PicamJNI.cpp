@@ -350,7 +350,8 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
     JNIEnv *, jclass, jint exposure) {
   constexpr int padding_microseconds = 1000;
 
-  if (!mmal_state.camera) return true;
+  if (!mmal_state.camera)
+    return true;
   return raspicamcontrol_set_shutter_speed(
       mmal_state.camera, padding_microseconds + ((double)exposure / 100.0) *
                                                     (1e6 / current_fps -
@@ -359,25 +360,32 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
     JNIEnv *, jclass, jint brightness) {
-  if (!mmal_state.camera) return true;
+  if (!mmal_state.camera)
+    return true;
   return raspicamcontrol_set_brightness(mmal_state.camera, brightness);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
-  if (!mmal_state.camera) return true;
+  if (!mmal_state.camera)
+    return true;
   // Right now we only expose one parameter
-  // Value ranges from here: https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains 
-  return raspicamcontrol_set_gains(mmal_state.camera, gain / 100.0 * 8.0, gain / 100.0 * 8.0);
+  // Value ranges from here:
+  // https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains
+  return raspicamcontrol_set_gains(mmal_state.camera, gain / 100.0 * 8.0,
+                                   gain / 100.0 * 8.0);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
     JNIEnv *, jclass, jint rotationOrdinal) {
   int rotation = (rotationOrdinal + 3) * 90; // Degrees
-  if (!mmal_state.camera) return true;
-  else if (tex_state.preview_rotation == rotation) return false;
+  if (!mmal_state.camera)
+    return true;
+  else if (tex_state.preview_rotation == rotation)
+    return false;
   tex_state.preview_rotation = rotation;
-  return raspicamcontrol_set_rotation(mmal_state.camera, rotation);
+  return raspicamcontrol_set_rotation(mmal_state.camera, rotation) &&
+         raspicamcontrol_set_flips(mmal_state.camera, false, true);
 }
 
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
@@ -388,7 +396,8 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
 
 JNIEXPORT jlong JNICALL
 Java_org_photonvision_raspi_PicamJNI_getFrameLatency(JNIEnv *, jclass) {
-  if (!mmal_state.camera_preview_port) return 0;
+  if (!mmal_state.camera_preview_port)
+    return 0;
 
   uint64_t current_stc_timestamp;
   mmal_port_parameter_get_uint64(mmal_state.camera_preview_port,
