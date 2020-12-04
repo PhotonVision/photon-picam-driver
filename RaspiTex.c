@@ -195,7 +195,6 @@ static int preview_process_returned_bufs(RASPITEX_STATE *state) {
       if (rc != 0) {
         vcos_log_error("%s: Error drawing frame. Stopping.", VCOS_FUNCTION);
         state->preview_stop = 1;
-        vcos_mutex_unlock(&state->preview_stop_mutex);
         return rc;
       }
     }
