@@ -298,6 +298,8 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
       throw std::runtime_error{"Couldn't start capture worker"};
     }
 
+    raspicamcontrol_set_flips(mmal_state.camera, true, false);
+
     return false;
   } catch (const std::runtime_error &e) {
     std::cerr << e.what() << std::endl;
@@ -400,8 +402,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
   else if (tex_state.preview_rotation == rotation)
     return false;
   tex_state.preview_rotation = rotation;
-  return raspicamcontrol_set_rotation(mmal_state.camera, rotation) &&
-         raspicamcontrol_set_flips(mmal_state.camera, false, true);
+  return raspicamcontrol_set_rotation(mmal_state.camera, rotation);
 }
 
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
