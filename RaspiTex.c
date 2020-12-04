@@ -464,15 +464,17 @@ void raspitex_set_defaults(RASPITEX_STATE *state) {
  * @param state  Pointer to the GL preview state.
  */
 void raspitex_stop(RASPITEX_STATE *state) {
-  if (!state->preview_stop) {
+  vcos_mutex_lock(&state->preview_stop_mutex);
+  if (state->preview_stop)
+    return;
+  vcos_mutex_unlock(&state->preview_stop_mutex);
 
-    vcos_log_trace("Stopping GL preview");
-    state->preview_stop = 1;
-    vcos_thread_join(&state->preview_thread, NULL);
+  vcos_log_trace("Stopping GL preview");
+  state->preview_stop = 1;
+  vcos_thread_join(&state->preview_thread, NULL);
 
-    vcos_mutex_lock(&state->preview_stop_mutex);
-    vcos_mutex_unlock(&state->preview_stop_mutex);
-  }
+  vcos_mutex_lock(&state->preview_stop_mutex);
+  vcos_mutex_unlock(&state->preview_stop_mutex);
 }
 
 /**
