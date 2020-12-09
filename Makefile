@@ -17,8 +17,8 @@ INCLUDES+=$(foreach d, $(JNI_INCLUDE), -I$d)
 
 # Add OpenCV library deps
 CFLAGS+=`pkg-config --cflags opencv`
-INCLUDES+=`pkg-config --libs opencv`
-LDFLAGS+=`pkg-config --libs opencv`
+INCLUDES+=-lopencv_core
+LDFLAGS+=-lopencv_core
 
 include ../Makefile.include
 
