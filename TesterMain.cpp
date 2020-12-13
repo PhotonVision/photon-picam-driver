@@ -1,6 +1,5 @@
 
 #include <opencv2/core/core.hpp>
-#include <opencv2/imgcodecs.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -52,19 +51,6 @@ void print() {
 
     mat->release();
   }
-  std::cout << "========== writing ========" << std::endl;
-  jlong mat_ptr =
-      Java_org_photonvision_raspi_PicamJNI_grabFrame(nullptr, nullptr, true);
-  if (mat_ptr == 0) {
-    std::cerr << "Got nullptr from grab frame" << std::endl;
-    return;
-  }
-  cv::Mat *mat = reinterpret_cast<cv::Mat *>(mat_ptr);
-  bool success = cv::imwrite("out.png", *mat);
-  if (!success)
-    std::cerr << "whoops" << std::endl;
-  std::cout << "releasing" << std::endl;
-  mat->release();
 }
 
 // This is just a little wrapper for manual testing that calls the functions
@@ -85,9 +71,7 @@ int main(int argc, char *argv[]) {
 
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, 1280, 720,
                                                     45);
-
   Java_org_photonvision_raspi_PicamJNI_setRotation(nullptr, nullptr, 90);
-
   print();
-  // Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
+  Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 }

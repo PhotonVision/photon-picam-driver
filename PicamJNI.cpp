@@ -298,6 +298,8 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
       throw std::runtime_error{"Couldn't start capture worker"};
     }
 
+    raspicamcontrol_set_flips(mmal_state.camera, true, false);
+
     return false;
   } catch (const std::runtime_error &e) {
     std::cerr << e.what() << std::endl;
@@ -308,6 +310,23 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
   raspitex_stop(&tex_state);
+
+  {
+    // Yuuuge hack... mmal_vc_port_send_callback gets called when buffers come
+    // back from the VC, and it doesn't check to see if we've freed the port
+    // that the callback is associated with. If the VC starts processing a
+    // buffer before we stop everything, and then returns the buffer after we've
+    // stopped then there's the possibility that it'll get returned after all
+    // the resources that are used to handle it have been freed, which is UB.
+    // Ideally we'd have a nullptr check there, but alas, we can't easily patch
+    // that code. Waiting to make sure that all buffers get processed before we
+    // free is a solution, albeit a shitty one.
+    // After we release we can look into patching the issue and PRing it upstream.
+
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(100ms);
+  }
+
   raspitex_destroy(&tex_state);
 
   // Disable all ports not handled by connections
@@ -349,6 +368,9 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
     JNIEnv *, jclass, jint exposure) {
   constexpr int padding_microseconds = 1000;
+
+  if (!mmal_state.camera)
+    return true;
   return raspicamcontrol_set_shutter_speed(
       mmal_state.camera, padding_microseconds + ((double)exposure / 100.0) *
                                                     (1e6 / current_fps -
@@ -357,17 +379,29 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
     JNIEnv *, jclass, jint brightness) {
+  if (!mmal_state.camera)
+    return true;
   return raspicamcontrol_set_brightness(mmal_state.camera, brightness);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
+  if (!mmal_state.camera)
+    return true;
   // Right now we only expose one parameter
-  return raspicamcontrol_set_gains(mmal_state.camera, gain, gain);
+  // Value ranges from here:
+  // https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains
+  return raspicamcontrol_set_gains(mmal_state.camera, gain / 100.0 * 8.0,
+                                   gain / 100.0 * 8.0);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
-    JNIEnv *, jclass, jint rotation) {
+    JNIEnv *, jclass, jint rotationOrdinal) {
+  int rotation = (rotationOrdinal + 3) * 90; // Degrees
+  if (!mmal_state.camera)
+    return true;
+  else if (tex_state.preview_rotation == rotation)
+    return false;
   tex_state.preview_rotation = rotation;
   return raspicamcontrol_set_rotation(mmal_state.camera, rotation);
 }
@@ -380,6 +414,9 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
 
 JNIEXPORT jlong JNICALL
 Java_org_photonvision_raspi_PicamJNI_getFrameLatency(JNIEnv *, jclass) {
+  if (!mmal_state.camera_preview_port)
+    return 0;
+
   uint64_t current_stc_timestamp;
   mmal_port_parameter_get_uint64(mmal_state.camera_preview_port,
                                  MMAL_PARAMETER_SYSTEM_TIME,
