@@ -4,7 +4,7 @@ Driver for the raspberry Pi camera. This driver provides access to the Pi camera
 ## Installation
  1. Clone this repo in `/opt/vc/src/hello_pi/`.
  2. Run `/opt/vc/src/hello_pi/rebuild.sh`.
- 3. Run `sudo apt install libopencv-dev`.
+ 3. Run `sudo apt install libopencv-core-dev`.
  4. Run `sudo raspi-config` and enable the legacy OpenGL driver.
  4. Run `make` in the top level directory (`/opt/vc/src/hello_pi/photon-picam-driver`) of this project (you may want to pass `-j` flags.)
 
