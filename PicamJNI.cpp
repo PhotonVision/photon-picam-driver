@@ -321,7 +321,8 @@ Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
     // Ideally we'd have a nullptr check there, but alas, we can't easily patch
     // that code. Waiting to make sure that all buffers get processed before we
     // free is a solution, albeit a shitty one.
-    // After we release we can look into patching the issue and PRing it upstream.
+    // After we release we can look into patching the issue and PRing it
+    // upstream.
 
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(100ms);
