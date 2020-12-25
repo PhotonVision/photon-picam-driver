@@ -16,8 +16,8 @@ JNI_INCLUDE=/usr/lib/jvm/java-11-openjdk-armhf/include \
 INCLUDES+=$(foreach d, $(JNI_INCLUDE), -I$d)
 
 # Add OpenCV library deps
-CFLAGS+=`pkg-config --cflags opencv`
-INCLUDES+=`pkg-config --cflags-only-I opencv`#-Wl,--whole-archive,-Bstatic -lopencv_core -Wl,--no-whole-archive,-Bdynamic # Note that -Wl,-B only works on the GNU linker
+CFLAGS+=-I/usr/include/opencv # Hardcoded because libopencv-core-dev doesn't install pkg-config files
+INCLUDES+=-I/usr/include/opencv
 LDFLAGS+=-Wl,--whole-archive,-Bstatic -lopencv_core -lz -Wl,--no-whole-archive,-Bdynamic # Note that -Wl,-B only works on the GNU linker
 
 
