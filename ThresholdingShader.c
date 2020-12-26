@@ -149,9 +149,43 @@ static int init_framebuffer(FRAMEBUFFER *fb, RASPITEX_STATE *raspitex_state) {
   return 0;
 }
 
-static int threshold_shader_init(RASPITEX_STATE *raspitex_state) {
-  printf("Using VCSM\n");
+static void cleanup_framebuffer(FRAMEBUFFER *fb,
+                                RASPITEX_STATE *raspitex_state) {
+  EGLBoolean destroy_success =
+      eglDestroyImageKHR(raspitex_state->display, fb->egl_fb_image);
+  if (destroy_success == EGL_FALSE) {
+    vcos_log_error("Couldn't destroy EGLImageKHR: 0x%04x\n", eglGetError());
+  }
+  fb->egl_fb_image = EGL_NO_IMAGE_KHR;
 
+  GLCHK(glDeleteTextures(1, &fb->tex_name));
+  GLCHK(glDeleteFramebuffers(1, &fb->name));
+}
+
+static void threshold_shader_term(RASPITEX_STATE *raspitex_state) {
+  // Cleanup framebuffers and attached textures/EGLImageKHRs
+  for (int i = 0; i < NUM_FRAMEBUFFERS; i++) {
+    cleanup_framebuffer(&framebuffers[i], raspitex_state);
+  }
+  raspitex_state->egl_image = EGL_NO_IMAGE_KHR;
+
+  // Terminate EGL
+  eglMakeCurrent(raspitex_state->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                 EGL_NO_CONTEXT);
+  eglDestroyContext(raspitex_state->display, raspitex_state->context);
+  eglDestroySurface(raspitex_state->display, raspitex_state->surface);
+  eglTerminate(raspitex_state->display);
+}
+
+static void free_vcsm_bufs(RASPITEX_STATE *raspitex_state) {
+  // Shared memory buffers allocated by eglCreateImageKHR(EGL_IMAGE_BRCM_VCSM)
+  // aren't freed by eglDestroyImageKHR; we have to free them manually.
+  for (int i = 0; i < NUM_FRAMEBUFFERS; i++) {
+    vcsm_free(framebuffers[i].vcsm_info.vcsm_handle);
+  }
+}
+
+static int threshold_shader_init(RASPITEX_STATE *raspitex_state) {
   int rc = vcsm_init();
 
   fb_width = next_power_of_two(raspitex_state->width);
@@ -182,8 +216,6 @@ static int threshold_shader_init(RASPITEX_STATE *raspitex_state) {
 
   GLCHK(glClearColor(0, 0, 0, 0));
 end:
-  printf("VCSM init done\n");
-
   return rc;
 }
 
@@ -262,6 +294,8 @@ int threshold_shader_open(RASPITEX_STATE *raspitex_state) {
   vcos_log_trace("%s", VCOS_FUNCTION);
 
   raspitex_state->ops.gl_init = threshold_shader_init;
+  raspitex_state->ops.gl_term = threshold_shader_term;
+  raspitex_state->ops.close = free_vcsm_bufs;
   raspitex_state->ops.redraw = threshold_shader_redraw;
   raspitex_state->ops.update_texture = raspitexutil_update_texture;
   return 0;

@@ -20,5 +20,6 @@
 
 void check_disable_port(MMAL_PORT_T *port);
 int mmal_status_to_int(MMAL_STATUS_T status);
+int get_sensor_name(int camera_num, char *camera_name);
 
 #endif
