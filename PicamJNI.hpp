@@ -10,6 +10,14 @@ extern "C" {
 #endif
 /*
  * Class:     org_photonvision_raspi_PicamJNI
+ * Method:    getSensorModelRaw
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_org_photonvision_raspi_PicamJNI_getSensorModelRaw(JNIEnv *, jclass);
+
+/*
+ * Class:     org_photonvision_raspi_PicamJNI
  * Method:    createCamera
  * Signature: (III)Z
  */
