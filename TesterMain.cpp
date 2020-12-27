@@ -64,14 +64,23 @@ int main(int argc, char *argv[]) {
     fps = atoi(argv[3]);
   }
 
+  // Great for testing framerate, latency, etc.
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width,
                                                     height, fps);
   print();
   Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
+  // Test rotation
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, 1280, 720,
                                                     45);
   Java_org_photonvision_raspi_PicamJNI_setRotation(nullptr, nullptr, 90);
   print();
   Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
+
+  // Make sure we don't leak GPU memory
+  for (int i = 0; i < 10; i++) {
+    Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, 1920,
+                                                      1080, 30);
+    Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
+  }
 }
