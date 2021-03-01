@@ -18,6 +18,14 @@ Java_org_photonvision_raspi_PicamJNI_getSensorModelRaw(JNIEnv *, jclass);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI
+ * Method:    isVCSMSupported
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_org_photonvision_raspi_PicamJNI_isVCSMSupported(JNIEnv *, jclass);
+
+/*
+ * Class:     org_photonvision_raspi_PicamJNI
  * Method:    createCamera
  * Signature: (III)Z
  */

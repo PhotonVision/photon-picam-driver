@@ -11,13 +11,13 @@ extern "C" {
 #include "RaspiCamControl.h"
 #include "RaspiTex.h"
 
-#include "bcm_host.h"
+#include <bcm_host.h>
 
-#include "interface/mmal/mmal.h"
-#include "interface/mmal/mmal_parameters_camera.h"
-#include "interface/mmal/util/mmal_connection.h"
-#include "interface/mmal/util/mmal_default_components.h"
-#include "interface/mmal/util/mmal_util_params.h"
+#include <interface/mmal/mmal.h>
+#include <interface/mmal/mmal_parameters_camera.h>
+#include <interface/mmal/util/mmal_connection.h>
+#include <interface/mmal/util/mmal_default_components.h>
+#include <interface/mmal/util/mmal_util_params.h>
 }
 
 void print() {
@@ -64,9 +64,15 @@ int main(int argc, char *argv[]) {
     fps = atoi(argv[3]);
   }
 
+  if (!Java_org_photonvision_raspi_PicamJNI_isVCSMSupported(nullptr, nullptr)) {
+    std::cout << "Unsupported platform" << std::endl;
+    return EXIT_FAILURE;
+  }
+
   // Great for testing framerate, latency, etc.
   Java_org_photonvision_raspi_PicamJNI_createCamera(nullptr, nullptr, width,
                                                     height, fps);
+
   print();
   Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
 
@@ -83,4 +89,6 @@ int main(int argc, char *argv[]) {
                                                       1080, 30);
     Java_org_photonvision_raspi_PicamJNI_destroyCamera(nullptr, nullptr);
   }
+
+  return EXIT_SUCCESS;
 }
