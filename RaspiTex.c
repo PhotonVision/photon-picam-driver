@@ -220,7 +220,10 @@ static void *preview_worker(void *arg) {
 
   rc = state->ops.create_native_window(state);
   if (rc != 0)
-    goto end;
+    // We do *not* goto end here because it's really not appropriate to clean up
+    // when nothing is initialized (or even worse, trying to clean up when our
+    // calls are unsupported)
+    return NULL;
 
   rc = state->ops.gl_init(state);
   if (rc != 0)
