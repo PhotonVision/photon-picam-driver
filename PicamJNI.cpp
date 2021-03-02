@@ -239,16 +239,16 @@ void enqueue_mat(unsigned char *vcsm_buffer, int fbo_idx, int width, int height,
 }
 
 void set_last_timestamp(uint64_t stc_timestamp) {
-  std::scoped_lock<std::mutex> lk(timestamp_mutex);
+  std::scoped_lock lk(timestamp_mutex);
   last_stc_timestamp = stc_timestamp;
 }
 
 void wait_for_vcsm_read_done(int fbo_idx) {
-  std::scoped_lock<std::mutex> lk(vcsm_mutexes[fbo_idx]);
+  std::scoped_lock lk(vcsm_mutexes[fbo_idx]);
 }
 
 void get_thresholds(double lower[3], double upper[3]) {
-  std::scoped_lock<std::mutex> lk(hsv_uniforms_mutex);
+  std::scoped_lock lk(hsv_uniforms_mutex);
   std::copy(hsv_thresholds.begin(), hsv_thresholds.begin() + 3, lower);
   std::copy(hsv_thresholds.begin() + 3, hsv_thresholds.end(), upper);
 }
@@ -365,7 +365,7 @@ Java_org_photonvision_raspi_PicamJNI_destroyCamera(JNIEnv *, jclass) {
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
     JNIEnv *, jclass, jdouble h_l, jdouble s_l, jdouble v_l, jdouble h_u,
     jdouble s_u, jdouble v_u) {
-  std::scoped_lock<std::mutex> lk(hsv_uniforms_mutex);
+  std::scoped_lock lk(hsv_uniforms_mutex);
   // You _can_ pass a jdouble[], but it's slow and unpleasant
   hsv_thresholds[0] = h_l;
   hsv_thresholds[1] = s_l;
@@ -418,7 +418,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
 
 JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setShouldCopyColor(
     JNIEnv *, jclass, jboolean should_copy_color) {
-  std::scoped_lock<std::mutex> lk(mat_available_mutex);
+  std::scoped_lock lk(mat_available_mutex);
   copy_color = should_copy_color;
 }
 
@@ -432,7 +432,7 @@ Java_org_photonvision_raspi_PicamJNI_getFrameLatency(JNIEnv *, jclass) {
                                  MMAL_PARAMETER_SYSTEM_TIME,
                                  &current_stc_timestamp);
 
-  std::scoped_lock<std::mutex> lk(timestamp_mutex);
+  std::scoped_lock lk(timestamp_mutex);
   return std::max(
       static_cast<int64_t>(current_stc_timestamp - last_stc_timestamp),
       INT64_C(0));
@@ -443,7 +443,7 @@ JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
   {
     jlong ret = 0;
 
-    std::unique_lock<std::mutex> lk(mat_available_mutex);
+    std::unique_lock lk(mat_available_mutex);
     if (!should_return_color)
       // We don't care about waiting for a new frame when returning the color
       // Mat because we assume that we've already just waited for a new frame
