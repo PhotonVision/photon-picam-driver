@@ -412,6 +412,26 @@ Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
                                    gain / 100.0 * 8.0);
 }
 
+// These gains should be between 0.0 and 8.0, and can be a float
+JNIEXPORT jboolean JNICALL
+Java_org_photonvision_raspi_PicamJNI_setAWB(JNIEnv *, jclass, jfloat redGain, jfloat blueGain) {
+  if (!mmal_state.camera)
+    return true;
+
+  // Clamp to [0.0, 8.0]
+  // TODO do we want to warn the user when clamping?
+  redGain = fmax(redGain, 0);
+  redGain = fmin(redGain, 8);
+  blueGain = fmax(blueGain, 0);
+  blueGain = fmin(blueGain, 8);
+
+  // AWB must be off to set our gains
+  // It should be off my default, but we should make sure regardless
+  int ret = raspicamcontrol_set_awb_mode(mmal_state.camera, MMAL_PARAM_AWBMODE_OFF);
+  ret |= raspicamcontrol_set_awb_gains(mmal_state.camera, redGain, blueGain);
+  return ret;
+}
+
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
     JNIEnv *, jclass, jint rotationOrdinal) {
   int rotation = (rotationOrdinal + 3) * 90; // Degrees
