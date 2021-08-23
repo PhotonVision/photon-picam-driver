@@ -408,9 +408,10 @@ Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
   // Right now we only expose one parameter
   // Value ranges from here:
   // https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains
-  return raspicamcontrol_set_awb_mode(mmal_state.camera, MMAL_PARAM_AWBMODE_OFF) 
-    || raspicamcontrol_set_awb_gains(mmal_state.camera, gain / 100.0 * 8.0,
-                                   gain / 100.0 * 8.0);
+  return raspicamcontrol_set_awb_mode(mmal_state.camera,
+                                      MMAL_PARAM_AWBMODE_OFF) ||
+         raspicamcontrol_set_awb_gains(mmal_state.camera, gain / 100.0 * 8.0,
+                                       gain / 100.0 * 8.0);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
