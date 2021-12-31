@@ -266,8 +266,10 @@ Java_org_photonvision_raspi_PicamJNI_getSensorModelRaw(JNIEnv *env, jclass) {
 JNIEXPORT jboolean
 Java_org_photonvision_raspi_PicamJNI_isVCSMSupported(JNIEnv *, jclass) {
   // Memoize the return code so we're not calling init all the time
-  static int rc = vcsm_init();
-  return rc;
+  static int rc = vcsm_init(); // 0 on success, -1 on failure
+  // -1 underflows on cast to jboolean which is defined to give unsigned char
+  // max, which is not the same as JNI_FALSE and JNI_TRUE (0 and 1 respectively)
+  return rc == 0;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
