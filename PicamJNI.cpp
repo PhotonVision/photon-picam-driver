@@ -472,4 +472,30 @@ JNIEXPORT jlong JNICALL Java_org_photonvision_raspi_PicamJNI_grabFrame(
   }
 }
 
+// Input should be 8uC3, and output should be 8uC1
+JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_inRangeInvertedHue(
+    JNIEnv *, jclass, jlong inPtr, jlong outPtr, jint hueExcludeStart,
+    jint hueExcludeEnd, jint satMin, jint satMax, jint valMin, jint valMax) {
+
+  cv::Mat *inMat = (cv::Mat *)inPtr;
+  cv::Mat *outMat = (cv::Mat *)outPtr;
+
+  int bound = inMat->rows * inMat->cols;
+  unsigned char *inData = inMat->data;
+  unsigned char *dst = outMat->data;
+
+  for (int i = 0; i < bound; i++) {
+    dst[i] = 255;
+    unsigned char *base = inData + 3 * i;
+
+    unsigned char hue = *(base + 0);
+    unsigned char sat = *(base + 1);
+    unsigned char val = *(base + 2);
+    if ((hue > hueExcludeStart && hue < hueExcludeEnd) || (sat < satMin || sat > satMax) || (val < valMin || val > valMax)) {
+      dst[i] = 0;
+      continue;
+    }
+  }
+}
+
 } // extern "C"

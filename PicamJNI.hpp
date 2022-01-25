@@ -104,6 +104,11 @@ Java_org_photonvision_raspi_PicamJNI_getFrameLatency(JNIEnv *, jclass);
 JNIEXPORT jlong JNICALL
 Java_org_photonvision_raspi_PicamJNI_grabFrame(JNIEnv *, jclass, jboolean);
 
+
+JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_inRangeInvertedHue(
+    JNIEnv *, jclass, jlong inPtr, jlong outPtr, jint hueExcludeStart,
+    jint hueExcludeEnd, jint satMin, jint satMax, jint valMin, jint valMax);
+
 #ifdef __cplusplus
 }
 #endif
