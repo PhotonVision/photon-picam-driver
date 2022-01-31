@@ -72,6 +72,9 @@ Java_org_photonvision_raspi_PicamJNI_setBrightness(JNIEnv *, jclass, jint);
 JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint);
 
+JNIEXPORT jboolean JNICALL
+Java_org_photonvision_raspi_PicamJNI_setAwbGain(JNIEnv *, jclass, jint red, jint blue);
+
 /*
  * Class:     org_photonvision_raspi_PicamJNI
  * Method:    setRotation
