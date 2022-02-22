@@ -289,6 +289,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 
     std::cout << "Setting up MMAL, EGL, and OpenGL for " << width << "x"
               << height << std::endl;
+    std::cout << "(The native code was built on " __DATE__ " at " __TIME__ ")" << std::endl;
 
     int ret;
 
