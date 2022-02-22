@@ -18,9 +18,11 @@
 #include "ThresholdingShader.h"
 #include "RaspiTex.h"
 #include "RaspiTexUtil.h"
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+
 #include <interface/vcsm/user-vcsm.h>
 
 /* Draw a scaled quad showing the entire texture with the
@@ -45,13 +47,13 @@ static RASPITEXUTIL_SHADER_PROGRAM_T threshold_shader_oes_shader = {
         ""
         "varying vec2 texcoord;"
         ""
+        "uniform samplerExternalOES tex;"
         "uniform vec3 lowerThresh;"
         "uniform vec3 upperThresh;"
-        "uniform samplerExternalOES tex;"
+        "uniform bool invertHue;"
         ""
         "vec3 rgb2hsv(const vec3 p) {"
         "  const vec4 H = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);"
-        // Using ternary seems to be faster than using mix and step
         "  vec4 o = mix(vec4(p.bg, H.wz), vec4(p.gb, H.xy), step(p.b, p.g));"
         "  vec4 t = mix(vec4(o.xyw, p.r), vec4(p.r, o.yzx), step(o.x, p.r));"
         ""
@@ -65,14 +67,19 @@ static RASPITEXUTIL_SHADER_PROGRAM_T threshold_shader_oes_shader = {
         "  const float epsilon = 0.0001;"
         "  bvec3 botBool = greaterThanEqual(hsv, lowerThresh - epsilon);"
         "  bvec3 topBool = lessThanEqual(hsv, upperThresh + epsilon);"
-        "  return all(botBool) && all(topBool);"
+        "  if (invertHue) {"
+        "    return !(botBool.x && topBool.x) && all(botBool.yz) && "
+        "all(topBool.yz);"
+        "  } else {"
+        "    return all(botBool) && all(topBool);"
+        "  }"
         "}"
         ""
         "void main(void) {"
         "  vec3 col = texture2D(tex, texcoord).rgb;"
         "  gl_FragColor = vec4(col.bgr, int(inRange(rgb2hsv(col))));"
         "}",
-    .uniform_names = {"tex", "lowerThresh", "upperThresh"},
+    .uniform_names = {"tex", "lowerThresh", "upperThresh", "invertHue"},
     .attribute_names = {"vertex"},
 };
 
@@ -267,6 +274,10 @@ static int threshold_shader_redraw(RASPITEX_STATE *raspitex_state) {
   GLCHK(glUniform3f(threshold_shader_oes_shader.uniform_locations[2], up[0],
                     up[1],
                     up[2])); // upper thresh
+
+  bool invertHue = raspitex_state->get_invert_hue();
+  GLCHK(
+      glUniform1i(threshold_shader_oes_shader.uniform_locations[3], invertHue));
 
   GLCHK(glDrawArrays(GL_TRIANGLES, 0, 6));
 
