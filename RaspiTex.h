@@ -24,6 +24,7 @@
 #include <GLES/gl.h>
 #include <GLES/glext.h>
 #include <interface/mmal/mmal.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #define RASPITEX_VERSION_MAJOR 1
@@ -101,10 +102,10 @@ typedef struct RASPITEX_CAPTURE {
   int request;
 } RASPITEX_CAPTURE;
 
-// typedef void (*enqueue_mat)(unsigned char *, int, int, int);
 typedef void (*wait_for_vcsm_available)(int);
 typedef void (*enqueue_unpicked_mat)(unsigned char *, int, int, int, int, int);
 typedef void (*get_hsv_threshold)(double[3], double[3]);
+typedef bool (*get_inverting_hue)(void);
 typedef void (*set_last_stc_timestamp)(uint64_t);
 
 /**
@@ -144,6 +145,10 @@ typedef struct RASPITEX_STATE {
 
   /* Function pointer for getting the current HSV thresholds */
   get_hsv_threshold get_thresholds;
+
+  /* Function pointer for getting whether or not we should invert the hue
+   * thresholding */
+  get_inverting_hue get_invert_hue;
 
   /* Function pointer for setting timestamps to track latency */
   set_last_stc_timestamp set_last_frame_timestamp;

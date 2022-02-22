@@ -169,7 +169,7 @@ static int raspitex_draw(RASPITEX_STATE *state, MMAL_BUFFER_HEADER_T *buf) {
       goto end;
 
   } else {
-    vcos_log_trace("%s: No preview image", VCOS_FUNCTION);
+    vcos_log_error("%s: No preview image", VCOS_FUNCTION);
   }
 
 end:

@@ -63,8 +63,8 @@ void raspicamcontrol_set_defaults(RASPICAM_CAMERA_PARAMETERS *params) {
   params->hflip = params->vflip = 0;
   params->roi.x = params->roi.y = 0.0;
   params->roi.w = params->roi.h = 1.0;
-  params->shutter_speed = 0; // 0 = auto
-  params->awb_gains_r = 1.975;   // Only have any function if AWB OFF is used.
+  params->shutter_speed = 0;   // 0 = auto
+  params->awb_gains_r = 1.975; // Only have any function if AWB OFF is used.
   params->awb_gains_b = 1.200;
   params->drc_level = MMAL_PARAMETER_DRC_STRENGTH_OFF;
   params->stats_pass = MMAL_FALSE;

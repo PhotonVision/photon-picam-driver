@@ -91,6 +91,9 @@ unsigned char *vcsm_buffer;
 std::mutex hsv_uniforms_mutex;
 std::array<double, 6> hsv_thresholds = {0, 0, 0, 1, 1, 0.5};
 
+std::mutex invert_hue_uniform_mutex;
+bool invert_hue = false;
+
 namespace {
 void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
                 unsigned int width, unsigned int height, unsigned int fps) {
@@ -252,6 +255,11 @@ void get_thresholds(double lower[3], double upper[3]) {
   std::copy(hsv_thresholds.begin(), hsv_thresholds.begin() + 3, lower);
   std::copy(hsv_thresholds.begin() + 3, hsv_thresholds.end(), upper);
 }
+
+bool get_invert_hue() {
+  std::scoped_lock lk(invert_hue_uniform_mutex);
+  return invert_hue;
+}
 } // namespace
 
 JNIEXPORT jstring
@@ -291,6 +299,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
     tex_state.wait_for_vcsm_read_done = wait_for_vcsm_read_done;
     tex_state.set_last_frame_timestamp = set_last_timestamp;
     tex_state.get_thresholds = get_thresholds;
+    tex_state.get_invert_hue = get_invert_hue;
     ret = raspitex_init(&tex_state);
     if (ret != 0) {
       throw std::runtime_error{
@@ -382,6 +391,12 @@ JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setThresholds(
   hsv_thresholds[3] = h_u;
   hsv_thresholds[4] = s_u;
   hsv_thresholds[5] = v_u;
+}
+
+JNIEXPORT void JNICALL Java_org_photonvision_raspi_PicamJNI_setInvertHue(
+    JNIEnv *, jclass, jboolean should_invert) {
+  std::scoped_lock lk(invert_hue_uniform_mutex);
+  invert_hue = should_invert;
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
