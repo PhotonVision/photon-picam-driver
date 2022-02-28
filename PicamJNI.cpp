@@ -108,6 +108,7 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
     std::ostringstream msg;
     msg << "Couldn't create MMAL camera component : error " << status;
     throw std::runtime_error{msg.str()};
+
   }
 
   MMAL_PARAMETER_INT32_T camera_num = {
@@ -125,9 +126,15 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
     throw std::runtime_error{"Camera doesn't have any output ports"};
   }
 
+  // In most cases we let MMAL select the sensor mode
+  uint32_t vid_mode = 0;
+  // MMAL likes to pick sensor mode 6, which is deeply broken, for 960x720 at greater than 42 FPS
+  if (width == 960 && height == 720) {
+    vid_mode = 5;
+  }
   status = mmal_port_parameter_set_uint32(
       state->camera->control, MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG,
-      0 /* automatic sensor mode selection */);
+      vid_mode);
   if (status != MMAL_SUCCESS) {
     std::ostringstream msg;
     msg << "Couldn't set camera sensor mode : error " << status;
@@ -149,7 +156,7 @@ void setup_mmal(MMAL_STATE *state, RASPICAM_CAMERA_PARAMETERS *cam_params,
         .max_preview_video_h = height,
         .num_preview_video_frames = width * height >= 1920 * 1080
                                         ? 3
-                                        : 3 + vcos_max(0, (fps - 30) / 10),
+                                        : 3 + std::max(0u, (fps - 30) / 10),
         .stills_capture_circular_buffer_height = 0,
         .fast_preview_resume = 0,
         .use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC};
@@ -319,6 +326,17 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
       throw std::runtime_error{"Couldn't configure MMAL preview port"};
     }
 
+    uint32_t actual_sensor_mode;
+    MMAL_STATUS_T status = mmal_port_parameter_get_uint32(
+        mmal_state.camera->control, MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG,
+        &actual_sensor_mode);
+    if (status != MMAL_SUCCESS) {
+      std::ostringstream msg;
+      msg << "Couldn't get camera sensor mode : error " << status;
+      throw std::runtime_error{msg.str()};
+    }
+    std::cout << "Selected sensor mode " << actual_sensor_mode << std::endl;
+
     std::cout << "Setup done; starting OpenGL and capture worker" << std::endl;
 
     ret = raspitex_start(&tex_state);
@@ -406,6 +424,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setExposure(
 
   if (!mmal_state.camera)
     return true;
+  // Shutter speed is actually a magic paramter that affects both gain and exposure time
   return raspicamcontrol_set_shutter_speed(
       mmal_state.camera, padding_microseconds + ((double)exposure / 100.0) *
                                                     (1e6 / current_fps -
