@@ -289,6 +289,7 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
 
     std::cout << "Setting up MMAL, EGL, and OpenGL for " << width << "x"
               << height << std::endl;
+    std::cout << "(The native code was built on " __DATE__ " at " __TIME__ ")" << std::endl;
 
     int ret;
 
@@ -419,14 +420,21 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setBrightness(
 }
 
 JNIEXPORT jboolean JNICALL
+Java_org_photonvision_raspi_PicamJNI_setAwbGain(JNIEnv *, jclass, jint red, jint blue) {
+  if (!mmal_state.camera)
+    return true;
+  // Value ranges from here:
+  // https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains
+  return raspicamcontrol_set_awb_gains(mmal_state.camera, red / 100.0 * 8.0,
+                                       blue / 100.0 * 8.0);
+}
+
+JNIEXPORT jboolean JNICALL
 Java_org_photonvision_raspi_PicamJNI_setGain(JNIEnv *, jclass, jint gain) {
   if (!mmal_state.camera)
     return true;
-  // Right now we only expose one parameter
-  // Value ranges from here:
-  // https://picamera.readthedocs.io/en/release-1.10/api_camera.html#picamera.camera.PiCamera.awb_gains
-  return raspicamcontrol_set_awb_gains(mmal_state.camera, gain / 100.0 * 8.0,
-                                       gain / 100.0 * 8.0);
+  // Right now will only set analog gain
+  return raspicamcontrol_set_gains(mmal_state.camera, gain / 100.0, 0);
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_setRotation(
