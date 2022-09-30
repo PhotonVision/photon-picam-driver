@@ -179,6 +179,7 @@ int raspicamcontrol_get_all_parameters(MMAL_COMPONENT_T *camera,
 void raspicamcontrol_dump_parameters(const RASPICAM_CAMERA_PARAMETERS *params);
 
 void raspicamcontrol_set_defaults(RASPICAM_CAMERA_PARAMETERS *params);
+void raspicamcontrol_config_autoexposure(RASPICAM_CAMERA_PARAMETERS *params);
 
 void raspicamcontrol_check_configuration(int min_gpu_mem);
 
