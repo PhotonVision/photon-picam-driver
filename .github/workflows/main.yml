@@ -25,24 +25,24 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
     
-    - uses: pguyot/arm-runner-action@v2
-      id: build_image
-      with:
-        base_image: raspi_3_bullseye:20220121
-        commands: |
-            cd /opt/vc/src/hello_pi
-            git clone https://github.com/PhotonVision/photon-picam-driver.git
-            sudo apt install libopencv-core-dev -y
-            cd photon-picam-driver
-            make
-    - name: Compress the release image
-      if: github.ref == 'refs/heads/releng' || startsWith(github.ref, 'refs/tags/')
-      run: |
-        mv ${{ steps.build_image.outputs.image }} my-release-image.img
-        xz -0 -T 0 -v my-release-image.img
-    - name: Upload release image
-      uses: actions/upload-artifact@v2
-      if: github.ref == 'refs/heads/releng' || startsWith(github.ref, 'refs/tags/')
-      with:
-        name: Release image
-        path: my-release-image.img.xz
+      - uses: pguyot/arm-runner-action@v2
+        id: build_image
+        with:
+          base_image: raspi_3_bullseye:20220121
+          commands: |
+              cd /opt/vc/src/hello_pi
+              git clone https://github.com/PhotonVision/photon-picam-driver.git
+              sudo apt install libopencv-core-dev -y
+              cd photon-picam-driver
+              make
+      - name: Compress the release image
+        if: github.ref == 'refs/heads/releng' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          mv ${{ steps.build_image.outputs.image }} my-release-image.img
+          xz -0 -T 0 -v my-release-image.img
+      - name: Upload release image
+        uses: actions/upload-artifact@v2
+        if: github.ref == 'refs/heads/releng' || startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Release image
+          path: my-release-image.img.xz
