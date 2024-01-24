@@ -69,8 +69,7 @@ std::mutex mat_available_mutex;
 std::condition_variable mat_available;
 
 // The below buffers hold the uncropped color and threshold channels picked out
-// of the VCSM buffer (yeah yeah, raw pointers bad, but GCC doesn't vectorize
-// anything else)
+// of the VCSM buffer
 cv::Mat color_mat{};
 cv::Mat threshold_mat{};
 std::vector<unsigned char> inter_cropped_buffer;
