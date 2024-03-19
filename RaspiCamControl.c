@@ -78,6 +78,30 @@ void raspicamcontrol_set_defaults(RASPICAM_CAMERA_PARAMETERS *params) {
   params->stereo_mode.swap_eyes = MMAL_FALSE;
 }
 
+
+void raspicamcontrol_config_autoexposure(RASPICAM_CAMERA_PARAMETERS *params) {
+  vcos_assert(params);
+
+  // Picams let you control exposure by adjusting the exposure time,
+  // analog/digital gains, or ISO. I'm pretty sure ISO is just another
+  // way of talking about analog/digital gains, but I'm not sure.
+  // 
+
+  // Auto shutter speed
+  params->shutter_speed = 0;
+
+  // Let the camera pick the best analog and digital gains
+  params->exposureMode = MMAL_PARAM_EXPOSUREMODE_AUTO;
+
+  // Auto whitebalance
+  params->awbMode = MMAL_PARAM_AWBMODE_AUTO;
+
+  // IDK, this seems useful
+  // Set exposure compensation up a few stops
+  // if everything looks washed out, this is why
+  params->exposureCompensation = 6;
+}
+
 /**
  * Get all the current camera parameters from specified camera component
  * @param camera Pointer to camera component

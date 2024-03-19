@@ -30,7 +30,7 @@ Java_org_photonvision_raspi_PicamJNI_isVCSMSupported(JNIEnv *, jclass);
  * Signature: (III)Z
  */
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
-    JNIEnv *, jclass, jint, jint, jint);
+    JNIEnv *, jclass, jint, jint, jint, jboolean);
 
 /*
  * Class:     org_photonvision_raspi_PicamJNI

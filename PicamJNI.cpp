@@ -287,7 +287,7 @@ Java_org_photonvision_raspi_PicamJNI_isVCSMSupported(JNIEnv *, jclass) {
 }
 
 JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
-    JNIEnv *, jclass, jint width, jint height, jint fps) {
+    JNIEnv *, jclass, jint width, jint height, jint fps, jboolean doAutoExposureMode) {
   try {
     if (width < 0 || height < 0 || fps < 0) {
       throw std::runtime_error{"Width, height, and FPS must be positive"};
@@ -313,8 +313,14 @@ JNIEXPORT jboolean JNICALL Java_org_photonvision_raspi_PicamJNI_createCamera(
           "Couldn't initialize OpenGL and DispmanX native window"};
     }
 
+    // Sets default for retroreflective/fixed-exposure tracking
     RASPICAM_CAMERA_PARAMETERS cam_params{};
     raspicamcontrol_set_defaults(&cam_params);
+
+    // Re-enable auto exposure/iso and things after setup
+    if (doAutoExposureMode) {
+      raspicamcontrol_config_autoexposure(&cam_params);
+    }
 
     setup_mmal(&mmal_state, &cam_params, tex_state.width, tex_state.height,
                fps); // Throws
